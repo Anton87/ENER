@@ -1,0 +1,34 @@
+package it.unitn.uvq.antonio.nlp.parsing;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class TreeTransformer {
+	
+	static Tree<String> transform(final edu.stanford.nlp.trees.Tree tree) {
+		if (tree == null) throw new NullPointerException("tree: null");
+		TreeBuilder<String> tb = 
+				new TreeBuilder<String>(
+						tree.label().value(), null);
+		return (TreeBuilder<String>) tb.addChildren(
+				transform(tree.getChildrenAsList(), tb));
+	}
+	
+	private static List<Tree<String>> transform(final List<edu.stanford.nlp.trees.Tree> trees, final Tree<String> parent) {
+		assert parent != null;
+		List<Tree<String>> newTrees = new ArrayList<>();
+		for (edu.stanford.nlp.trees.Tree tree : trees) { 
+			Tree<String> newTree = transformTree(tree, parent);
+			newTrees.add(newTree);
+		}
+		return newTrees;
+	}
+	
+	private static Tree<String> transformTree(final edu.stanford.nlp.trees.Tree tree, final Tree<String> parent) {
+		assert tree != null;
+		assert parent != null;
+		TreeBuilder<String> newTree = new TreeBuilder<String>(tree.label().value(), parent);
+		return newTree.addChildren(transform(tree.getChildrenAsList(), newTree));
+	}
+
+}
