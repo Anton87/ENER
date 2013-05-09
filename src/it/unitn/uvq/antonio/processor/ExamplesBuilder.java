@@ -17,32 +17,19 @@ public abstract class ExamplesBuilder {
 		this.notableTypeId = notableTypeId;
 	}
 	
-	void process(
-			String mid,
-			EntityI entity,
-			String paragraph,
-			List<Triple<String, Integer, Integer>> toks,
-			Triple<String, Integer, Integer> sent,
-			List<Quadruple<String, String, Integer, Integer>> poss,
-			List<Quadruple<String, String, Integer, Integer>> nes,
-			Tree tree,
-			Tree vec
-	) {
-		process(namedEntityType, mid, entity, paragraph, toks, sent, poss, nes, tree, vec);
+	void process(String mid, EntityI entity, String paragraph, Triple<String, Integer, Integer> sent, List<Quadruple<String, String, Integer, Integer>> nes) {
+		process(namedEntityType, notableTypeId, mid, entity, paragraph, sent, nes);
 	}
 	
 	
 	public abstract void process(
 			String namedEntityType,
+			String notableTypeId,
 			String mid,
 			EntityI entity, 
 			String paragraph,
-			List<Triple<String, Integer, Integer>> toks,
 			Triple<String, Integer, Integer> sent,
-			List<Quadruple<String, String, Integer, Integer>> tagWords,
-			List<Quadruple<String, String, Integer, Integer>> nes,
-			Tree tree,
-			Tree vec
+			List<Quadruple<String, String, Integer, Integer>> nes
 	);
 	
 	private final String namedEntityType;
