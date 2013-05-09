@@ -22,7 +22,9 @@ public class ParagraphRetriever extends AbstractProcessor {
 		paragraph = getWikiAbstract(mid);
 		outFile += "/abstract";
 		
-		write(paragraph, outFile + "/" + paragraph.hashCode());
+		if (paragraph != null && !paragraph.isEmpty()) {
+			write(paragraph, outFile + "/" + paragraph.hashCode());
+		}
 		
 		return m;		
 	}

@@ -30,11 +30,16 @@ public class TopicsRepository {
 	 * @throws NullPointerException if typeId is null
 	 * @throws max if max is less than 0
 	 */
-	public static List<String> getMidsByNotableTypeId(String typeId, int max) {
+	public static List<String> getMidsByNotableTypeId(String typeId, int num) {
+		return freebase.getEntityIdsByNotableForTypeId(typeId, 0, num);
+	}
+	
+	public static List<String> getMidsByNotableTypeId(String typeId, int offset, int num) { 
 		if (typeId == null) throw new NullPointerException("typeId: null");
-		if (max < 0) throw new IllegalArgumentException("max < 0");
+		if (offset < 0) throw new IllegalArgumentException("offset < 0:" + offset);
+		if (num < 0) throw new IllegalArgumentException("num < 0: " + num);
 		
-		return freebase.getEntityIdsByNotableForTypeId(typeId, max);
+		return freebase.getEntityIdsByNotableForTypeId(typeId, offset, num);
 	}
 	
 	/**

@@ -4,16 +4,19 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
-import java.io.ObjectOutputStream;
 import java.io.PrintWriter;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
-import javax.xml.soap.Text;
+import com.google.common.base.Joiner;
 
 import svmlighttk.SVMExampleBuilder;
 
@@ -22,6 +25,7 @@ import edu.illinois.cs.cogcomp.entityComparison.core.EntityComparison;
 import it.unitn.uvq.antonio.file.FileUtils;
 import it.unitn.uvq.antonio.freebase.db.EntityI;
 import it.unitn.uvq.antonio.freebase.db.NotableType;
+import it.unitn.uvq.antonio.freebase.db.TypeI;
 import it.unitn.uvq.antonio.freebase.repository.Freebase;
 import it.unitn.uvq.antonio.nlp.annotation.AnnotationApi;
 import it.unitn.uvq.antonio.nlp.annotation.AnnotationI;
@@ -52,33 +56,37 @@ public class Loader {
 		
 		String inFile = "/home/antonio/Scrivania";
 		
-		
-		
-		NotableType type = NotableType.EN_MUSICIAN;
+		NotableType type = NotableType.COMPUTER_SCIENTIST;
 		
 		String typeID = type.getId();
 		String thisPath = inFile + typeID + "/m";
 		
-		String vecOutFile = "/home/antonio/Scrivania/vec";
-		new File(vecOutFile).mkdirs();
-		vecOutFile = vecOutFile + "/" + typeID.replace("/", "%2F");
+		String vecFile = "/home/antonio/Scrivania/vec";
+		new File(vecFile).mkdirs();
+		vecFile = vecFile + "/" + urlEncode(typeID) + ".dat"; 
 		
-		String treeOutFile = "/home/antonio/Scrivania/tree";
-		new File(treeOutFile).mkdirs();
-		treeOutFile = treeOutFile + "/" + typeID.replace("/", "%2F");
+		String treeFile = "/home/antonio/Scrivania/tree";
+		new File(treeFile).mkdirs();
+		treeFile = treeFile + "/" + urlEncode(typeID) + ".dat"; 
 		
 		PrintWriter vecOut = null;
+		PrintWriter vecTypesOut = null;
 		try {
 			vecOut = new PrintWriter(
-						new FileOutputStream(vecOutFile));
+						new FileOutputStream(vecFile));
+			vecTypesOut = new PrintWriter(
+						new FileOutputStream(vecFile + ".types"));
 		} catch (IOException e) { 
 			System.err.println(e.getMessage());
-		}
+		}		
 		
 		PrintWriter treeOut = null;
+		PrintWriter treeTypesOut = null;
 		try {
 			treeOut = new PrintWriter(
-						new FileOutputStream(treeOutFile)); 
+						new FileOutputStream(treeFile)); 
+			treeTypesOut = new PrintWriter(
+					new FileOutputStream(treeFile + ".types"));
 		} catch (IOException e) { 
 			System.err.println(e.getMessage());
 		}
@@ -89,6 +97,8 @@ public class Loader {
 			
 			// Freebase entity
 			EntityI entity = freebase.byMid(mid);
+			
+			Set<String> entityTypes = getNotableTypes(entity);
 			
 			Entity e = new Entity(entity, neType.toString());
 			
@@ -102,18 +112,13 @@ public class Loader {
 			String paragraph = readText(parFile);
 			
 			if (paragraph == null || paragraph.isEmpty()) continue;
-			
-			System.out.println(paragraph);
-			
+						
 			List<Triple<String, Integer, Integer>> tokens = getTokens(thisPath + "/toks");
-			Collections.sort(tokens, TRIPLE_POS_CMP);
 			
+			Collections.sort(tokens, TRIPLE_POS_CMP);		
 			
-			BOW bow = BOW.newInstance(tokens);
+			BOW bow = BOW.newInstance(tokens);			
 			
-			
-			
-			System.out.println("text: " + paragraph);
 			thisPath = inFile + typeID + mid + "/abstract/pos";
 			
 			thisPath = inFile + typeID + mid + "/abstract/sents";
@@ -128,7 +133,6 @@ public class Loader {
 				
 					
 				for (File file4 : listFiles(file3.getPath(), FILE_FILTER)) { 
-					//System.out.println("(II): sent's path:" + file4.getPath());
 					AnnotationI a = (AnnotationI) readObject(file4.getPath());
 					sent = 
 							new SimpleTriple<>(paragraph.substring(a.start(), a.end()), a.start(), a.end());
@@ -168,7 +172,6 @@ public class Loader {
 				Tree tree = null;
 				thisPath = inFile + typeID + mid + "/abstract/sents/" + file3.getName() + "/tree";
 				for (File file5 : listFiles(thisPath, DIR_FILTER)) {
-					//System.out.println("(II): path: \"" + file5.getPath() + "\".");
 					tree = Tree.loadTree(file5.getPath());
 				}
 
@@ -178,7 +181,6 @@ public class Loader {
 				Tree vec = null;
 				thisPath = inFile + typeID + mid + "/abstract/sents/" + file3.getName() + "/vec";
 				for (File file5 : listFiles(thisPath, DIR_FILTER)) { 
-					//System.out.println("(II): path: \"" + file5.getPath() + "\".");
 					vec = Tree.loadTree(file5.getPath());
 				}			
 
@@ -217,6 +219,7 @@ public class Loader {
 					
 					System.out.println("(II): BOW+Tree: " + bowTreeEx);
 					treeOut.println(bowTreeEx);
+					treeTypesOut.println(join("\t", entityTypes));
 					
 				}
 					
@@ -234,17 +237,21 @@ public class Loader {
 
 					System.out.println("(II): BOW+Vec :" + bowVecEx);
 					vecOut.println(bowVecEx);
+					vecTypesOut.println(join("\t", entityTypes));
 				}
 				
 				
 				System.out.println();				
 			}				
-		}
-		treeOut.close();
+		}		
 		vecOut.close();
+		treeOut.close();
+		
+		vecTypesOut.close();
+		treeTypesOut.close();
 	}
 	
-	private static TreeBuilder annotate(TreeBuilder tree, List<TextAnnotationI> annotations) { 
+	private static TreeBuilder annotate(TreeBuilder tree, List<TextAnnotationI> annotations) {
 		for (TextAnnotationI a : annotations) {
 			tree = ANNOTATOR.annotate(a, tree);
 		}
@@ -325,6 +332,7 @@ public class Loader {
 			this.names = format(names, eType);			
 		}
 		
+		/*
 		Entity(List<String> names, String entityType) { 
 			if (names == null) throw new NullPointerException("names: null");
 			if (entityType == null) throw new NullPointerException("entityType: null");
@@ -332,6 +340,7 @@ public class Loader {
 			String eType = getEType(entityType);
 			this.names = format(names, eType);
 		}
+		*/
 		
 		private List<String> format(List<String> names, String eType) { 
 			assert names != null;
@@ -364,11 +373,13 @@ public class Loader {
 			return entityType.isEmpty() ? entityType : entityType.toUpperCase().substring(0, 3);
 		}
 		
+		/*
 		Entity(List<String> names) { 
 			if (names == null) throw new NullPointerException("names: null");
 			
 			this.names = names;
 		}
+		*/
 		
 		/**
 		 * otherNamne must be in this form: PER#Entity, ORG#Entity, LOC#Entity 
@@ -403,7 +414,7 @@ public class Loader {
 			ENTITY_CMP.compare(name, otherName);
 			double score = ENTITY_CMP.getScore();
 			
-			System.out.println("sim(\"" + name + "\", \"" + otherName + "\") -> " + score + ".");
+			System.out.println("(II): sim(\"" + name + "\", \"" + otherName + "\") = " + score );
 			return score > THRESHOLD;
 		}
 		
@@ -413,6 +424,19 @@ public class Loader {
 		
 		final List<String> names;
 		
+	}
+	
+	private static Set<String> getNotableTypes(EntityI entity) {
+		assert entity != null;
+		
+		Set<String> types = new HashSet<>();
+		for (TypeI type : entity.getNotableTypes()) { 
+			types.add(type.getId());
+		}
+		if (entity.getNotableFor() != null) {
+			types.add(entity.getNotableFor().getId());
+		}
+		return types;		
 	}
 	
 	private static List<Triple<String, Integer, Integer>> getWords(String filepath, String sent) { 
@@ -454,12 +478,12 @@ public class Loader {
 		return triples;
 	}
 	
+	/*
 	private static List<Quadruple<String, String, Integer, Integer>> getTaggedWords(String filepath, String sent) {
 		assert filepath != null;
 		assert sent != null;
 		
 		String path = filepath + "/pos";
-		System.out.println(path);
 		List<TextAnnotationI> txtList = unmarshalAnnotations(path);
 		List<Quadruple<String, String, Integer, Integer>> taggedWords = new ArrayList<>();
 		for (TextAnnotationI txt : txtList) {
@@ -471,12 +495,12 @@ public class Loader {
 		return taggedWords;
 		
 	}
+	*/
 	
 	private static List<TextAnnotationI> unmarshalAnnotations(String filepath) {
 		assert filepath != null;
 		
 		List<TextAnnotationI> txtList = new ArrayList<>();
-		System.out.println("it.unitn.uvq.antonio.processor unmarshalAnnotations(): filepath = \"" + filepath + "\".");
 		File file = new File(filepath);
 		for (File child : file.listFiles(DIR_FILTER)) {
 			TextAnnotationI ta = null;
@@ -517,7 +541,13 @@ public class Loader {
 		public boolean accept(File dir, String name) {
 			return new File(dir, name).isDirectory();
 		}
-	}; 
+	};
+	
+	private static String urlEncode(String str) {
+		assert str != null;
+		
+		return URLEncoder.encode(str);
+	}
 	
 	private final static FilenameFilter FILE_FILTER = new FilenameFilter() {
 
@@ -534,5 +564,12 @@ public class Loader {
 			return o1.second() - o2.third();				
 		}
 	};
+	
+	private final static String join(String sep, Collection<String> parts) { 
+		assert sep != null;
+		assert parts != null;
+		
+		return Joiner.on(sep).join(parts);
+	}		
 
 }

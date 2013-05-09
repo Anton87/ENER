@@ -12,6 +12,9 @@ import it.unitn.uvq.antonio.nlp.annotation.AnnotationI;
 import it.unitn.uvq.antonio.nlp.annotation.Annotator;
 import it.unitn.uvq.antonio.nlp.annotation.TextAnnotation;
 import it.unitn.uvq.antonio.nlp.annotation.TextAnnotationI;
+import it.unitn.uvq.antonio.util.IntRange;
+import it.unitn.uvq.antonio.util.tuple.SimpleTriple;
+import it.unitn.uvq.antonio.util.tuple.Triple;
 
 /**
  * Divides a text into a sequence of tokens 
@@ -34,32 +37,46 @@ public class Tokenizer implements Annotator {
 	public List<AnnotationI> annotate(String str) {
 		if (str == null) throw new NullPointerException();
 		
-		List<AnnotationI> aList = new ArrayList<>();
+		return getAnnotations();
+	}
+	
+	public List<Triple<String, Integer, Integer>> tokenize(String str) {
+		if (str == null) throw new NullPointerException("str: null");
+		
+		return tokenize(str, false);
+	}
+	
+	public List<Triple<String, Integer, Integer>> tokenizeNLs(String str) {
+		if (str ==  null) throw new NullPointerException("str: null");
+		
+		return tokenize(str, true);
+	}
+	
+	private List<Triple<String, Integer, Integer>> tokenize(String str, boolean nls) {
+		assert str != null;
+		
+		this.annotations = new ArrayList<>();
+		List<Triple<String, Integer, Integer>> tokens = new ArrayList<>();
 		PTBTokenizer<CoreLabel> ptbt = new PTBTokenizer<>(new StringReader(str),
 				new CoreLabelTokenFactory(), "");
 		for (CoreLabel label; ptbt.hasNext(); ) { 
 			label = ptbt.next();
-			AnnotationI a = new TextAnnotation(label.value(), label.beginPosition(), label.endPosition());
-			aList.add(a);
+			int start = label.beginPosition();
+			int end = label.endPosition();
+			String word = nls ? str.substring(start, end) : label.value();
+			Triple<String, Integer, Integer> token = new SimpleTriple<>(word, start, end);
+			tokens.add(token);
+			AnnotationI a = new TextAnnotation(word, start, end);
+			this.annotations.add(a);
 		}
-		return aList;
-	}
-
-	/**
-	 * Returns the list of tokens in the specified string.
-	 * 
-	 * @param str The string to tokenize
-	 * @return The list of tokens
-	 * @throws NullPointerExeptio if str is null
-	 */
-	public List<String> tokenize(String str) {
-		if (str == null) throw new NullPointerException("str: null");
-		
-		List<String> tokens = new ArrayList<>();
-		for (AnnotationI a : annotate(str)) { tokens.add(((TextAnnotationI) a).text()); }
 		return tokens;
-	}
-	
-	private final static Tokenizer INSTANCE = new Tokenizer();	
+	}	
 
+	@Override
+	public List<AnnotationI> getAnnotations() { return this.annotations; }	
+	
+	private final static Tokenizer INSTANCE = new Tokenizer();
+	
+	private List<AnnotationI> annotations = new ArrayList<>();
+	
 }

@@ -16,6 +16,7 @@ public class BasicAnnotationApi implements AnnotationApi {
 		
 		TreeBuilder subTree = findBestMatchingSubTree(a, tree);
 		if (subTree == null) { return false; }
+		// System.out.println("it.unitn.uvq.antonio.nlp.annotation.BasicAnnotationApi isAnnotable() - > " + subTree.toString());
 		return subTreeMatch(a, subTree) ||
 			   subTreeChildrenMatchAnnotation(a, subTree);
 	}
@@ -102,9 +103,19 @@ public class BasicAnnotationApi implements AnnotationApi {
 		assert a != null;
 		assert subTree != null;
 		
+		// System.out.println("it.unitn.uvq.antonio.nlp.annotation.BasicAnnotationApi subTreeChildrenMatchAnnotation() -> " + subTree.toString());
 		List<TreeBuilder> subTreeChildren = getOverlappingChildren(a, subTree);
+		// System.out.println("it.unitn.uvq.antonio.nlp.annotation.BasicAnnotationApi subTreeChildrenMatchAnnotation() -> subTreeChildren.isEmpty()? " + subTreeChildren.isEmpty() + ".");
+		// System.out.print("it.unitn.uvq.antonio.nlp.annoation.BasicAnnotationApi getOverlappingChildren() -> ");
+		/*
+		for (TreeBuilder child : subTreeChildren) { 
+			System.out.print("Tree(" + child.getText() + ", " + child.start() + ", " + child.end() + "), ");
+		}
+		*/
+		// System.out.println();
 		// System.out.print("subTreeChildren: ");
 		// System.out.println(subTreeChildren);
+		if (subTreeChildren.isEmpty()) { return false; }
 		IntRange span = getSpan(subTreeChildren);
 		return span.equals(a.span());
 	}

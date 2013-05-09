@@ -37,21 +37,44 @@ public class TreeMarshaller {
 		assert trees != null;
 		assert outFile != null;
 		
+		//System.out.println("trees == null? " + trees == null);
+		//System.out.println("outFile == null? " + outFile == null);
+		
 		deleteDirectoryIfExists(outFile);
-		mkdirs(outFile);
 		for (TreeBuilder tree : trees) { 
+			
 			String fp = new File(outFile, tree.hashCode() + ".out").toString();
+			System.out.println("Path: \"" + fp + "\".");
+			String fpParent = outFile;
+			
+			System.out.print("Creating path \"" + fpParent + "\"... ");
+			System.out.println(new File(fpParent).mkdirs() ? "Done." : "Failed.");
+			
+			System.out.println("Parent Path \"" + fpParent + "\" exists? " + new File(fpParent).exists());
+			
+			System.out.print("Writing Tree(\"" + tree.getText() + "\", " + tree.start() + ", " + tree.end() + ") on file: \"" + fp + "\"... ");
 			ObjectOutput out = null;
 			try {
-				out = new ObjectOutputStream(
-						new FileOutputStream(fp));
+				FileOutputStream fos = new FileOutputStream(fp);
+				//System.out.println("fos == null? " + (fos == null) + ".");
+				
+				out = new ObjectOutputStream(fos);
+				//System.out.println("out == null? " + (out == null) + ".");
 				out.writeObject(tree);
+				System.out.println("Done.");
 			} catch (IOException e) { 
+				System.out.println("Failed. (at writing)");
+				e.printStackTrace();
 				throw new TreeMarshalException("Tree marshalling error: \"" + outFile + "\"", e);
 			} finally {
+				/*
 				try {
 					out.close();
-				} catch (IOException e) { }
+				} catch (IOException e) {
+					System.out.println("Failed (at closing).");
+					e.printStackTrace();
+				}
+				*/
 			}			
 		}
 	}

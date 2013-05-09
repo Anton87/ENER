@@ -17,8 +17,12 @@ public class TreeProcessor extends AbstractProcessor {
 		outFile = (String) m.get("outFile");
 		String sent = (String) m.get("sentence");
 		
+		System.out.println("(II): sent: " + sent);
+		
 		tree = parse(sent);
+		System.out.print("Saving tree: " + (tree == null ? "null" : tree.toString()) + " ... ");
 		tree.save(outFile + "/tree/" + tree.hashCode());
+		System.out.println("Done.");
 		
 		return m;	
 	}

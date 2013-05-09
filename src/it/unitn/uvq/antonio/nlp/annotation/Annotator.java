@@ -18,5 +18,7 @@ public interface Annotator {
 	 * @throws NullPointerException if (str == null)
 	 */
 	List<AnnotationI> annotate(String str);
+	
+	List<AnnotationI> getAnnotations();
 
 }

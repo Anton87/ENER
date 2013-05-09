@@ -38,35 +38,31 @@ public class SentSplitter implements Annotator {
 	public List<AnnotationI> annotate(String str) { 
 		if (str == null) throw new NullPointerException("str: null");
 		
-		List<AnnotationI> annotations = new ArrayList<>();
+		this.annotations = new ArrayList<>();
 		List<Triple<String, Integer, Integer>> sentsInfo = getSentsInfo(str);
 		for (Triple<String, Integer, Integer> sentInfo : sentsInfo) {
 			AnnotationI a = new Annotation(sentInfo.second(), sentInfo.third());
-			annotations.add(a);
+			this.annotations.add(a);
 		}
-		return annotations;
+		return this.annotations;
 	}
 	
-	/**
-	 * Split the this text into sentences.
-	 * 
-	 * @param str A string holding the text to break 
-	 *  into sentences
-	 * @return The list of split sentences
-	 * @throws NullPointerException if (str == null)
-	 */
-	public List<String> split(String str) {
+	public List<Triple<String, Integer, Integer>> ssplit(String str) {
 		if (str == null) throw new NullPointerException("str: null");
 		
-		List<String> sentences = new ArrayList<>();
-		List<Triple<String, Integer, Integer>> sentsInfo = getSentsInfo(str);
-		for (Triple<String, Integer, Integer> sentInfo : sentsInfo) {
-			String sent = sentInfo.first();
-			sentences.add(sent);
+		annotate(str);
+		List<Triple<String, Integer, Integer>> sents = new ArrayList<>(); 
+		for (AnnotationI a : this.annotations) { 
+			String sentstr = str.substring(a.start(), a.end());
+			Triple<String, Integer, Integer> sent = new SimpleTriple<>(sentstr, a.start(), a.end());
+			sents.add(sent);
 		}
-		return sentences;
-	}	
+		return sents;
+	}
 	
+	@Override
+	public List<AnnotationI> getAnnotations() { return this.annotations; }
+		
 	private List<Triple<String, Integer, Integer>> getSentsInfo(String str) { 
 		assert str != null;
 		
@@ -94,6 +90,8 @@ public class SentSplitter implements Annotator {
 		Triple<String, Integer, Integer> sentInfo = new SimpleTriple<>(sent, beginPos, endPos);
 		return sentInfo;		
 	}
+	
+	private List<AnnotationI> annotations = new ArrayList<>();
 	
 	private final static SentSplitter INSTANCE = new SentSplitter();
 	

@@ -2,7 +2,6 @@ package it.unitn.uvq.antonio.processor;
 
 import it.unitn.uvq.antonio.nlp.annotation.AnnotationI;
 import it.unitn.uvq.antonio.nlp.annotation.TextAnnotationI;
-import it.unitn.uvq.antonio.nlp.pos.POSTagger;
 import it.unitn.uvq.antonio.nlp.tokenizer.Tokenizer;
 import it.unitn.uvq.antonio.util.tuple.SimpleTriple;
 import it.unitn.uvq.antonio.util.tuple.Triple;

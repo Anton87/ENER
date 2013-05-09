@@ -6,8 +6,10 @@ import it.unitn.uvq.antonio.nlp.parse.tree.Tree;
 import it.unitn.uvq.antonio.nlp.parse.tree.TreeBuilder;
 import it.unitn.uvq.antonio.nlp.parse.tree.TreeBuilderFactory;
 import it.unitn.uvq.antonio.nlp.pos.POSTagger;
+import it.unitn.uvq.antonio.nlp.tokenizer.Tokenizer;
 import it.unitn.uvq.antonio.util.IntRange;
 import it.unitn.uvq.antonio.util.tuple.Quadruple;
+import it.unitn.uvq.antonio.util.tuple.Triple;
 
 public class VectorParser {
 	
@@ -20,29 +22,29 @@ public class VectorParser {
 		
 		List<Quadruple<String, String, Integer, Integer>> tagWords = ptagger.tag(str);
 		
-		Quadruple<String, String, Integer, Integer> first = tagWords.get(0);
-		Quadruple<String, String, Integer, Integer> last = tagWords.get(tagWords.size() - 1);
+		int start = tagWords.get(0).third();
+		int end = tagWords.get(tagWords.size() - 1).fourth();
 		
-		int start = first.third();
-		int end = last.fourth();
 		int i = 1;
 		TreeBuilder root = TreeBuilderFactory.newInstance("ROOT", 1, new IntRange(start, end));
 		TreeBuilder s = TreeBuilderFactory.newInstance("S", 2, new IntRange(start, end));
 		root.addChild(s);
 		
 		i = 3;
-		for (Quadruple<String, String, Integer, Integer> tw : tagWords) { 
-			IntRange span = new IntRange(tw.third(), tw.fourth());			
-			TreeBuilder tag = TreeBuilderFactory.newInstance(tw.second(), i, span);
-			TreeBuilder word = TreeBuilderFactory.newInstance(tw.first(), i + tagWords.size(), span);
-			s.addChild(tag);
-			tag.addChild(word);			
+		for (Quadruple<String, String, Integer, Integer> tagWord : tagWords) { 
+			IntRange span = new IntRange(tagWord.third(), tagWord.fourth());	
+			TreeBuilder tagTree = TreeBuilderFactory.newInstance(tagWord.second(), i, span);
+			TreeBuilder wordTree = TreeBuilderFactory.newInstance(tagWord.first() , i + tagWords.size(), span);
+			s.addChild(tagTree);
+			tagTree.addChild(wordTree);			
 		}
 		return root.build();
 	}
 	
 	private final static VectorParser INSTANCE = new VectorParser();
 	
-	private POSTagger ptagger = POSTagger.getInstance();
+	private static Tokenizer tokenizer = Tokenizer.getInstance();
+	
+	private static POSTagger ptagger = POSTagger.getInstance();
 
 }

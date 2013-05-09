@@ -5,6 +5,8 @@ import it.unitn.uvq.antonio.nlp.annotation.Annotator;
 import it.unitn.uvq.antonio.nlp.annotation.TextAnnotation;
 import it.unitn.uvq.antonio.util.tuple.Quadruple;
 import it.unitn.uvq.antonio.util.tuple.SimpleQuadruple;
+import it.unitn.uvq.antonio.util.tuple.SimpleTriple;
+import it.unitn.uvq.antonio.util.tuple.Triple;
 
 import java.io.StringReader;
 import java.util.ArrayList;
@@ -45,12 +47,7 @@ public class POSTagger implements Annotator {
 	public List<AnnotationI> annotate(String str) {
 		if (str == null) throw new NullPointerException("str: null");
 		
-		List<AnnotationI> annotations = new ArrayList<>();
-		for (Quadruple<String, String, Integer, Integer> tagWord : tag(str)) { 
-			AnnotationI a = new TextAnnotation(tagWord.second(), tagWord.third(), tagWord.fourth());
-			annotations.add(a);
-		}
-		return annotations;
+		return this.annotations;
 	}
 	
 	/**
@@ -60,17 +57,35 @@ public class POSTagger implements Annotator {
 	 * @return The list of TaggedWord appearing in the text
 	 * @throws NullPointerException if (str == null)
 	 */
+	public List<Triple<String, Integer, Integer>> postag(String str) {
+		if (str == null) throw new NullPointerException("str: null");
+		
+		List<HasWord> words = sentTokenize(str);
+		this.annotations = new ArrayList<>();
+		List<Triple<String, Integer, Integer>> poss = new ArrayList<>();
+		for (edu.stanford.nlp.ling.TaggedWord tw : tagger.tagSentence(words)) {
+			//Quadruple<String, String, Integer, Integer> tagWord = 
+			//		new SimpleQuadruple<String, String, Integer, Integer>(tw.word(), tw.tag(), tw.beginPosition(), tw.endPosition());
+			Triple<String, Integer, Integer> pos = new SimpleTriple<>(tw.tag(), tw.beginPosition(), tw.endPosition());
+			poss.add(pos);
+			AnnotationI a = new TextAnnotation(tw.tag(), tw.beginPosition(), tw.endPosition());
+			this.annotations.add(a);
+		}
+		return poss;
+	}
+	
 	public List<Quadruple<String, String, Integer, Integer>> tag(String str) {
 		if (str == null) throw new NullPointerException("str: null");
 		
 		List<HasWord> words = sentTokenize(str);
-		List<Quadruple<String, String, Integer, Integer>> tagWords = new ArrayList<>();		
+		List<Quadruple<String, String, Integer, Integer>> tagWords = new ArrayList<>();
 		for (edu.stanford.nlp.ling.TaggedWord tw : tagger.tagSentence(words)) {
-			Quadruple<String, String, Integer, Integer> tagWord = 
-					new SimpleQuadruple<String, String, Integer, Integer>(tw.word(), tw.tag(), tw.beginPosition(), tw.endPosition());
+			Quadruple<String, String, Integer, Integer> tagWord = new SimpleQuadruple<>(tw.word(), tw.tag(), tw.beginPosition(), tw.endPosition());
 			tagWords.add(tagWord);
+			AnnotationI a = new TextAnnotation(tw.tag(), tw.beginPosition(), tw.endPosition());
+			this.annotations.add(a);
 		}
-		return tagWords;
+		return tagWords;		 
 	}
 	
 	private List<HasWord> sentTokenize(String str) {
@@ -96,5 +111,10 @@ public class POSTagger implements Annotator {
 	private final static String POSTAG_MODEL = "stanford-postagger/models/english-bidirectional-distsim.tagger";
 	
 	private MaxentTagger tagger;
+	
+	private List<AnnotationI> annotations = new ArrayList<>();
+
+	@Override
+	public List<AnnotationI> getAnnotations() { return this.annotations; }
 
 }

@@ -26,7 +26,6 @@ public class MidProcessor extends AbstractProcessor {
 		
 		List<Object> retValues = new ArrayList<>();
 		for (String mid : mids) {
-			System.out.println(mid);
 			Map<String, Object> n = new HashMap<>();
 			n.put("mid", mid);
 			n.put("outFile", outFile + ntypeID + mid);
