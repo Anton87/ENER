@@ -3,11 +3,30 @@ from itertools import islice
 
 import urllib
 import random
+import sys
 import os
 
 def main(argv=None):
     if argv is None:
         argv = sys.argv
+    if (len(argv) < 5):
+        usage()
+        sys.exit(0)
+    prog, trainSet, destDir, posNum, negNum = argv
+    print("trainSet: \"" + trainSet + "\"")
+    print("destDir:  \"" + destDir  + "\"")
+    print("posNum:   " + posNum)
+    print("negNum:   " + negNum)
+    buildModels(trainSet, destDir, int(posNum), int(negNum))
+
+def buildModels(trainSet, destDir, posNum, negNum):
+    if not os.path.exists(trainSet):
+        print("Directory not found: \"" + trainSet + "\".")
+        sys.exit(0)
+    for filename in os.listdir(trainSet):
+        if not filename.endswith("-types.txt"):
+            typeId = urllib.unquote(filename)[:-4]
+            buildModel(typeId, trainSet, destDir, posNum, negNum)
 
 
 def buildModel(typeId, trainSet, destDir, posNum, negNum):
@@ -37,7 +56,7 @@ def buildModel(typeId, trainSet, destDir, posNum, negNum):
             print("Done.")
             negExamplesPerClass = [examples[i] for i, example in enumerate(examples) if typeId not in typesPerExample[i].split('\t')]
             negExamples += negExamplesPerClass
-    print("Read %s negative examples." % (len(negExamples)))
+    print("Read %s positive examples and %s negative examples." % (len(posExamples), len(negExamples)))
     random.shuffle(negExamples)
 
     # Write model file
@@ -55,8 +74,12 @@ def readlines(filepath, n):
         lines= list(islice(fin, n))
     return lines
 
-
-        
+def usage():
+    print("Usage: python build-models.py trainSet destDir posExamplesNum, negExamplesNum")
             
+if __name__ == "__main__":
+    sys.exit(main())
 
     
+
+
