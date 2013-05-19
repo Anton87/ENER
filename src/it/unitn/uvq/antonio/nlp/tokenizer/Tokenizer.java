@@ -46,13 +46,13 @@ public class Tokenizer implements Annotator {
 		return tokenize(str, false);
 	}
 	
-	public List<Triple<String, Integer, Integer>> tokenizeNLs(String str) {
+	public List<Triple<String, Integer, Integer>> tokenizePTB3Escaping(String str) {
 		if (str ==  null) throw new NullPointerException("str: null");
 		
 		return tokenize(str, true);
 	}
 	
-	private List<Triple<String, Integer, Integer>> tokenize(String str, boolean nls) {
+	private List<Triple<String, Integer, Integer>> tokenize(String str, boolean ptb3Escaping) {
 		assert str != null;
 		
 		this.annotations = new ArrayList<>();
@@ -63,7 +63,7 @@ public class Tokenizer implements Annotator {
 			label = ptbt.next();
 			int start = label.beginPosition();
 			int end = label.endPosition();
-			String word = nls ? str.substring(start, end) : label.value();
+			String word = ptb3Escaping ? label.value() : str.substring(start, end);
 			Triple<String, Integer, Integer> token = new SimpleTriple<>(word, start, end);
 			tokens.add(token);
 			AnnotationI a = new TextAnnotation(word, start, end);

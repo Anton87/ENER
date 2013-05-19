@@ -2,11 +2,13 @@ package it.unitn.uvq.antonio.processor;
 
 import it.unitn.uvq.antonio.freebase.db.EntityI;
 import it.unitn.uvq.antonio.freebase.db.TypeI;
+import it.unitn.uvq.antonio.ml.bayes.Classifier;
+import it.unitn.uvq.antonio.ml.bayes.Models;
 import it.unitn.uvq.antonio.nlp.annotation.AnnotationApi;
 import it.unitn.uvq.antonio.nlp.annotation.BasicAnnotationApi;
 import it.unitn.uvq.antonio.nlp.annotation.TextAnnotation;
 import it.unitn.uvq.antonio.nlp.annotation.TextAnnotationI;
-import it.unitn.uvq.antonio.nlp.parse.Parser;
+import it.unitn.uvq.antonio.nlp.parse.VectorParser;
 import it.unitn.uvq.antonio.nlp.parse.tree.Tree;
 import it.unitn.uvq.antonio.nlp.parse.tree.TreeBuilder;
 import it.unitn.uvq.antonio.nlp.tokenizer.Tokenizer;
@@ -25,28 +27,30 @@ import java.util.Iterator;
 import java.util.List;
 
 import svmlighttk.SVMExampleBuilder;
+import svmlighttk.SVMVector;
 
 import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Collections2;
 
-public class TreeExamplesBuilder extends ExamplesBuilder {
-	
-	public TreeExamplesBuilder(String namedEntityType, String notableTypeId, int maxExamples, String destFile) {
+public class ShallowPlusVecExamplesBuilder extends ExamplesBuilder {
+
+	public ShallowPlusVecExamplesBuilder(String namedEntityType, String notableTypeId, int maxExamples, String destFile) {
 		super(namedEntityType, notableTypeId);
 		if (destFile == null) throw new NullPointerException("destFile: null");
-		if (maxExamples < 0) throw new NullPointerException("maxExamples < 0: " + maxExamples);
+		if (maxExamples < 0) throw new IllegalArgumentException("maxExamples < 0: " + maxExamples);
 		
+		init(Models.values());
 		this.maxExamples = maxExamples;
-		this.hasType = NEUtils.hasType(namedEntityType);		
+		this.hasType = NEUtils.hasType(namedEntityType);
 		
-		String treeFile = pathjoin(File.separator, destFile, "tree", encode(notableTypeId) + ".txt");
-		String typeFile = pathjoin(File.separator, destFile, "tree", encode(notableTypeId) + "-types.txt");
+		String vecFile = pathjoin(File.separator, destFile, "shallow_vec", encode(notableTypeId) + ".txt");
+		String typeFile = pathjoin(File.separator, destFile, "shallow_vec", encode(notableTypeId) + ".tsv");
 		
 		try {		
-			this.treeOut = new PrintStream(new FileOutputStream(treeFile));
+			this.vecOut = new PrintStream(new FileOutputStream(vecFile));
 		} catch (IOException e) { 
-			System.err.println("(EE): " + e.getMessage() + ", file=\"" + treeFile + "\".");
+			System.err.println("(EE): " + e.getMessage() + ", file=\"" + vecFile + "\".");
 			System.exit(1);
 		} 
 		
@@ -55,16 +59,15 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		} catch (IOException e) {
 			System.err.println("(EE): " + e.getMessage() + ", file=\"" + typeFile + "\".");
 			System.exit(1);
-		}
+		} 
 	}
-		
+	
 	@SuppressWarnings("deprecation")
 	private String encode(String str) {
 		assert str != null;
 		
 		return URLEncoder.encode(str);
 	}
-
 	
 	@Override
 	public void process(String priEntityType, String notableTypeId,
@@ -89,15 +92,16 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 			List<TextAnnotationI> priAnnotations = map(priEntities, toAnnotation);
 			List<TextAnnotationI> sndAnnotations = map(sndEntities, toAnnotation);
 			
-			Tree tree = parse(sent.first());
+			Tree vector = shallowParse(sent.first());
 			
-			if(isAtLeastOneAnnotable(tree, priAnnotations)) {
+			if(isAtLeastOneAnnotable(vector, priAnnotations)) {
 				String bow = buildBOW(sent.first());
 				@SuppressWarnings("unchecked")
-				Tree aTree = annotate(tree, priAnnotations, sndAnnotations);
+				Tree aVec = annotate(vector, priAnnotations, sndAnnotations);
 				
-				String svmExample = buildSVMExample(bow, aTree.toString());
-				treeOut.println(svmExample);
+				SVMVector probsVec = buildProbsVec(sent.first());				
+				String svmExample = buildSVMExample(bow, aVec.toString(), probsVec);
+				vecOut.println(svmExample);
 				
 				List<String> priEntityTypes = getEntityTypes(entity);
 				typeOut.println(join(SEPARATOR, priEntityTypes));
@@ -110,10 +114,21 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		if (examplesNum >= maxExamples) { stop(); }
 	}
 	
+	private SVMVector buildProbsVec(String sent) { 
+		assert sent != null;
+		
+		SVMVector vec = new SVMVector();
+		for (Classifier classifier : classifiers) { 
+			double prob = classifier.classify(sent, true);
+			vec.addFeature(prob);
+		}
+		return vec;
+	}
+	
 	private String buildBOW(String text) { 
 		assert text != null;
 		
-		List<Triple<String, Integer, Integer>> tokens = tokenizePTB3Escaping(text);
+		List<Triple<String, Integer, Integer>> tokens = tokenize(text);
 		return buildBOW(tokens);
 	}
 	
@@ -128,31 +143,33 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		return sb.toString();
 	}
 	
-	private List<Triple<String, Integer, Integer>> tokenizePTB3Escaping(String text) { 
+	private List<Triple<String, Integer, Integer>> tokenize(String text) { 
 		assert text != null;
 		
-		return Tokenizer.getInstance().tokenize(text);
+		return Tokenizer.getInstance().tokenizePTB3Escaping(text);
 	}
 	
-	private Tree parse(String sent) { 
+	private Tree shallowParse(String sent) { 
 		assert sent != null;
 		
-		return Parser.getInstance().parse(sent);
+		return VectorParser.getInstance().parse(sent);
 	}
 	
 	private void stop() { 
-		treeOut.close();
+		vecOut.close();
 		typeOut.close();
 		System.exit(0);
 	}
 	
-	private String buildSVMExample(String bow, String tree) { 
+	private String buildSVMExample(String bow, String tree, SVMVector vec) { 
 		assert bow != null;
 		assert tree != null;
+		assert vec != null;
 		
 		return new SVMExampleBuilder()
 			.addTree(bow)
 			.addTree(tree)
+			.addVector(vec)
 			.build();
 	}
 	
@@ -243,22 +260,32 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 			return new TextAnnotation(entity.third(), entity.fourth(), entity.fifth());
 		}
 	};	
-
+	
+	
+	private static void init(Models[] models) { 
+		assert models != null;
+		
+		classifiers = new ArrayList<>(); 
+		for (Models model : models) { 
+			Classifier classifier = new Classifier(model);
+			classifiers.add(classifier);
+		}
+	}
+	
 	private final static String SEPARATOR = "\t";
 	
 	private static AnnotationApi annotator = new BasicAnnotationApi();
 	
-	private int examplesNum = 0;
-	
+	private static List<Classifier> classifiers;
+		
 	private final HasType hasType;
 	
 	private final int maxExamples;
 	
-	private PrintStream treeOut;
+	private PrintStream vecOut;
 	
 	private PrintStream typeOut;
 	
-	
-	//private final Logger logger = Logger.getLogger(getClass().getName());
-	
+	private int examplesNum = 0;
+
 }

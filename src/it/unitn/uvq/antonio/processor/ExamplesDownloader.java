@@ -147,12 +147,12 @@ public class ExamplesDownloader {
 	private final String notableTypeId;
 	
 	public static void main(String[] args) {
-		String entityTypeId = "/military/military_person";
+		String entityTypeId = "/architecture/architect";
 		String priEntityType = "PERSON";
-		int examplesNum = 100;
+		int examplesNum = 1000;
 		String destFile = "/home/antonio/Scrivania";
 		
-		ExamplesBuilder builder  = new VecExamplesBuilder(priEntityType, entityTypeId, examplesNum, destFile);
+		ExamplesBuilder builder  = new ShallowPlusVecExamplesBuilder(priEntityType, entityTypeId, examplesNum, destFile);
 		ExamplesDownloader downloader = new ExamplesDownloader(entityTypeId, examplesNum, builder);
 		
 		downloader.run();		

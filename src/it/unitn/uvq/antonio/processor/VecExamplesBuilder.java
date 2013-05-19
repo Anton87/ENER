@@ -130,7 +130,7 @@ public class VecExamplesBuilder extends ExamplesBuilder {
 	private List<Triple<String, Integer, Integer>> tokenize(String text) { 
 		assert text != null;
 		
-		return Tokenizer.getInstance().tokenize(text);
+		return Tokenizer.getInstance().tokenizePTB3Escaping(text);
 	}
 	
 	private Tree shallowParse(String sent) { 
