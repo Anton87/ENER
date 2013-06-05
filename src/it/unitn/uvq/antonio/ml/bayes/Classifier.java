@@ -73,20 +73,5 @@ public class Classifier implements ClassifierI {
 	private static Tokenizer tokenizer = Tokenizer.getInstance();
 	
 	private static SnowballStemmer stemmer = newStemmer("english");
-	
-	
-	
-	
-	
-	public static void main(String[] args) { 
-		Model model = Models.AMERICAN_FOOTBALL;
-		
-		Classifier classifier = new Classifier(model);
-		
-		String sent = "Harry Everett \"Bud\" Abell is a former American football linebacker";
-		System.out.println("Pr(sent|" + model.modelName() + ") = " + classifier.classify(sent, true));
-		
-		
-	}
 
 }

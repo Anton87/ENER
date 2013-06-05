@@ -7,10 +7,14 @@ import it.unitn.uvq.antonio.freebase.topic.api.TopicAPIException;
 import it.unitn.uvq.antonio.nlp.ner.NER;
 import it.unitn.uvq.antonio.nlp.sent.SentSplitter;
 import it.unitn.uvq.antonio.util.tuple.Quadruple;
+import it.unitn.uvq.antonio.util.tuple.SimpleTriple;
 import it.unitn.uvq.antonio.util.tuple.Triple;
 
+import java.io.File;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public class ExamplesDownloader {
 		
@@ -26,12 +30,14 @@ public class ExamplesDownloader {
 	
 	public void run() {
 		
+		running = true;
+		
 		int offset = 0;
 		
 		List<String> mids = retrieveMidsByNotableTypeId(notableTypeId, offset, examplesPerTime);
 		offset += mids.size();
 		
-		while (!mids.isEmpty()) {
+		while (running && !mids.isEmpty()) {
 			String mid = mids.remove(0);
 			
 			process(mid);
@@ -53,52 +59,30 @@ public class ExamplesDownloader {
 		
 		if (paragraph != null && !paragraph.isEmpty()) { 			
 			
-			
-			//List<Triple<String, Integer, Integer>> toks = tokenize(paragraph);
-			
 			List<Triple<String, Integer, Integer>> sents = ssplit(paragraph);
 			
 			for (Triple<String, Integer, Integer> sent : sents) { 
 				
-				/*
-				System.out.println("(II): MID: \"" + mid + "\"");
+				String newSent= stripBrackets(sent.first())
+						.replaceAll("\\s+", " ")
+						.replaceAll("\\s(\\p{Punct})", "$1")
+						.replaceAll("([!\"#$%&')*+,-/:;?@\\[\\]^_`{|}~])+", "$1")
+						.replaceAll("\\s+", " ");						
 				
-				System.out.println("(II): Entity: " + entity);
-				
-				System.out.println("(II): Paragraph: \"" + paragraph + "\"");
-
-				System.out.println("(II): Tokens: " + toks);
-				
-				System.out.println("(II): Sent: " + sent);
-				*/
-				
-				//List<Quadruple<String, String, Integer, Integer>> poss = postag(sent.first());
-				// System.out.println("(II): P-o-S: " + poss);
-				
-				List<Quadruple<String, String, Integer, Integer>> nes = classify(sent.first());
-				// System.out.println("(II): NEs: " + nes);
+				Triple<String, Integer, Integer> normalizedSent = new SimpleTriple<>(newSent, sent.second(), sent.third()); 
+								
+				List<Quadruple<String, String, Integer, Integer>> nes = classify(normalizedSent.first());
 				
 				if (!nes.isEmpty()) { 
-					
-					//Tree tree = parse(sent.first());					
-					// System.out.println("(II): Tree: " + tree);
 				
-					//Tree vec = shallowParse(sent.first());
-					//// System.out.println("(II): Vec: " + vec);
-					
-					//builder.process(mid, entity, paragraph, toks, sent, poss, nes, tree, vec);
-					builder.process(mid, entity, paragraph, sent, nes);
-				  
-				}
-				
-				// System.out.println();
-				
-				
-			}
-			
-		}
-		
-		
+					try {
+						builder.process(mid, entity, paragraph, normalizedSent, nes);
+					} catch (OutOfMemoryError e) {
+						System.out.print("x");
+					} 
+				}			
+			}	
+		}	
 	}
 	
 	private List<String> retrieveMidsByNotableTypeId(String id, int offset, int examplesNum) { 
@@ -134,6 +118,16 @@ public class ExamplesDownloader {
 		return ner.classify(sent);
 	}
 	
+	private String stripBrackets(String str) {
+		assert str != null;
+		
+		StringBuilder sb = new StringBuilder();
+		for (String part : brPattern.split(str, 0)) { 
+			sb.append(part);
+		}
+		return sb.toString();		
+	}
+	
 	private static FreebaseDB freebaseDB = new FreebaseDB();
 	
 	private static SentSplitter ssplitter = SentSplitter.getInstance();
@@ -146,16 +140,71 @@ public class ExamplesDownloader {
 	
 	private final String notableTypeId;
 	
+	private final static String brRegex = "\\([^)]*\\)";
+	
+	private final static Pattern brPattern = Pattern.compile(brRegex);
+	
+	static boolean running = false;
+	
+	private static String encode(String str) {
+		assert str != null;
+		
+		return URLEncoder.encode(str);				
+	}
+	
 	public static void main(String[] args) {
-		String entityTypeId = "/architecture/architect";
-		String priEntityType = "PERSON";
+		// String entityTypeId = "/education/academic";
+		String priEntityType = "ORGANIZATION";
 		int examplesNum = 1000;
-		String destFile = "/home/antonio/Scrivania";
+		//String destFile = "/home/antonio/Scrivania/sshdir_loc/shallow/data";		
 		
-		ExamplesBuilder builder  = new ShallowPlusVecExamplesBuilder(priEntityType, entityTypeId, examplesNum, destFile);
-		ExamplesDownloader downloader = new ExamplesDownloader(entityTypeId, examplesNum, builder);
-		
-		downloader.run();		
+		/*
+		 * Person notable-types.
+		 *
+		 *	String[] notableTypeIDs = new String[] {
+		 *	"/architecture/architect",
+		 *	"/education/academic",
+		 *	"/en/model",
+		 *	"/en/physician",
+		 *	"/en/writer",
+		 *	"/film/actor",
+		 *	"/government/politician",
+		 *	"/music/artist",
+		 *	"/sports/pro_athlete",			
+		 *	"/visual_art/visual_artist"
+		 *	};
+		 */
+
+		/* 
+		 * Organization notable-types
+		 */
+		String[] notableTypeIDs = new String[] {
+			"/tv/tv_network",
+			"sports/sports_team"
+			//"/business/business_operation",
+			//"/business/industry",
+			//"/government/political_party",
+			//"/military/armed_force",
+			//"/aviation/airline",
+			//"/education/school",
+			//"/government/government_agency",
+			//"/automotive/company",
+			//"/base/charities/charity",
+			//"/organization/non_profit_organization",
+			//"/music/record_label",
+			//"/sports/sports_league",
+			//"/religion/religious_organization",
+			//"/music/musical_group",
+			//"/medicine/hospital"
+		};
+
+		for (String entityTypeId : notableTypeIDs) {
+			String destFile = "/home/antonio/Scrivania/sshdir_loc/tree/ORG/data/" + encode(entityTypeId);
+			if (!new File(destFile).isDirectory()) new File(destFile).mkdirs(); 
+			ExamplesBuilder builder  = new TreeExamplesBuilder(priEntityType, entityTypeId, examplesNum, destFile);
+			ExamplesDownloader downloader = new ExamplesDownloader(entityTypeId, examplesNum, builder);
+			downloader.run();
+		}
 	}
 
 }

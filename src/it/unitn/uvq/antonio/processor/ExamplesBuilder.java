@@ -21,7 +21,6 @@ public abstract class ExamplesBuilder {
 		process(namedEntityType, notableTypeId, mid, entity, paragraph, sent, nes);
 	}
 	
-	
 	public abstract void process(
 			String namedEntityType,
 			String notableTypeId,

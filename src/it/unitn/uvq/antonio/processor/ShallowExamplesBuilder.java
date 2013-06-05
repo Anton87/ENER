@@ -16,13 +16,14 @@ import it.unitn.uvq.antonio.util.tuple.Quintuple;
 import it.unitn.uvq.antonio.util.tuple.Triple;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.PrintStream;
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import svmlighttk.SVMExampleBuilder;
 
@@ -30,32 +31,37 @@ import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Collections2;
 
-public class VecExamplesBuilder extends ExamplesBuilder {
+public class ShallowExamplesBuilder extends ExamplesBuilder {
 
-	public VecExamplesBuilder(String namedEntityType, String notableTypeId, int maxExamples, String destFile) {
-		super(namedEntityType, notableTypeId);
-		if (destFile == null) throw new NullPointerException("destFile: null");
+	public ShallowExamplesBuilder(String namedEntityType, String notableTypeID, int maxExamples, String dest) {
+		super(namedEntityType, notableTypeID);
+		if (dest == null) throw new NullPointerException("dest: null");
 		if (maxExamples < 0) throw new IllegalArgumentException("maxExamples < 0: " + maxExamples);
 		
 		this.maxExamples = maxExamples;
 		this.hasType = NEUtils.hasType(namedEntityType);
-		
-		String vecFile = pathjoin(File.separator, destFile, "vec", encode(notableTypeId) + ".txt");
-		String typeFile = pathjoin(File.separator, destFile, "vec", encode(notableTypeId) + "-types.txt");
-		
-		try {		
-			this.vecOut = new PrintStream(new FileOutputStream(vecFile));
-		} catch (IOException e) { 
-			System.err.println("(EE): " + e.getMessage() + ", file=\"" + vecFile + "\".");
-			System.exit(1);
-		} 
-		
+				
 		try {
-			this.typeOut = new PrintStream(new FileOutputStream(typeFile));
-		} catch (IOException e) {
-			System.err.println("(EE): " + e.getMessage() + ", file=\"" + typeFile + "\".");
-			System.exit(1);
-		} 
+			map.put("dat", initWriter(newpath(dest, encode(notableTypeID)) + ".dat"));
+			map.put("txt", initWriter(newpath(dest, encode(notableTypeID)) + ".txt"));
+			map.put("tsv", initWriter(newpath(dest, encode(notableTypeID)) + ".tsv"));
+		} catch (FileNotFoundException e) { 
+			System.err.println("(EE): Error while initing out streams.");
+			System.exit(-1);
+		}		
+	}
+	
+	private PrintWriter initWriter(String filepath) throws FileNotFoundException {
+		assert filepath != null;
+		
+		PrintWriter writer = null;
+		try {
+			writer = new PrintWriter(filepath);
+		} catch (FileNotFoundException e) {
+			System.err.println("(EE): File not found: \"" + filepath + "\".");
+			throw e;
+		}
+		return writer;
 	}
 	
 	@SuppressWarnings("deprecation")
@@ -95,18 +101,30 @@ public class VecExamplesBuilder extends ExamplesBuilder {
 				@SuppressWarnings("unchecked")
 				Tree aVec = annotate(vector, priAnnotations, sndAnnotations);
 				
-				String svmExample = buildSVMExample(bow, aVec.toString());
-				vecOut.println(svmExample);
+				String example = buildSVMExample(bow, aVec.toString());
+				//String fileId = String.format("%04d", examplesNum);
+				map.get("dat").println(example);
+
+				String priEntityTypes = join(SEPARATOR, getEntityTypes(entity));
+				map.get("tsv").println(priEntityTypes);		
 				
-				List<String> priEntityTypes = getEntityTypes(entity);
-				typeOut.println(join(SEPARATOR, priEntityTypes));
+				map.get("txt").println(sent.first());
+				examplesNum += 1;		
 				
-				examplesNum += 1;			
 				System.out.print(".");
 			}
 		}
 		
-		if (examplesNum >= maxExamples) { stop(); }
+		if (examplesNum >= maxExamples) { 
+			ExamplesDownloader.running = false; 
+			close();
+		}
+	}
+	
+	private void close() { 
+		for (PrintWriter writer : map.values()) {
+			writer.close();
+		}
 	}
 	
 	private String buildBOW(String text) { 
@@ -139,12 +157,6 @@ public class VecExamplesBuilder extends ExamplesBuilder {
 		return VectorParser.getInstance().parse(sent);
 	}
 	
-	private void stop() { 
-		vecOut.close();
-		typeOut.close();
-		System.exit(0);
-	}
-	
 	private String buildSVMExample(String bow, String tree) { 
 		assert bow != null;
 		assert tree != null;
@@ -162,7 +174,7 @@ public class VecExamplesBuilder extends ExamplesBuilder {
 		return Joiner.on(sep).join(parts);
 	}
 	
-	private static String pathjoin(String... parts) { 
+	private static String newpath(String... parts) { 
 		assert parts != null;
 		
 		return Joiner.on(File.separator).join(parts);
@@ -251,10 +263,8 @@ public class VecExamplesBuilder extends ExamplesBuilder {
 	
 	private final int maxExamples;
 	
-	private PrintStream vecOut;
-	
-	private PrintStream typeOut;
-	
 	private int examplesNum = 0;
+	
+	private Map<String, PrintWriter> map = new HashMap<>();
 
 }

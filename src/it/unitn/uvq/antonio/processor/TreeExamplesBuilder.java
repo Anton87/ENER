@@ -16,13 +16,18 @@ import it.unitn.uvq.antonio.util.tuple.Quintuple;
 import it.unitn.uvq.antonio.util.tuple.Triple;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.PrintWriter;
+import java.io.Writer;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import svmlighttk.SVMExampleBuilder;
 
@@ -32,30 +37,47 @@ import com.google.common.collect.Collections2;
 
 public class TreeExamplesBuilder extends ExamplesBuilder {
 	
-	public TreeExamplesBuilder(String namedEntityType, String notableTypeId, int maxExamples, String destFile) {
-		super(namedEntityType, notableTypeId);
-		if (destFile == null) throw new NullPointerException("destFile: null");
+	public TreeExamplesBuilder(String namedEntityType, String notableTypeID, int maxExamples, String dest) {
+		super(namedEntityType, notableTypeID);
+		if (dest == null) throw new NullPointerException("destFile: null");
 		if (maxExamples < 0) throw new NullPointerException("maxExamples < 0: " + maxExamples);
 		
 		this.maxExamples = maxExamples;
 		this.hasType = NEUtils.hasType(namedEntityType);		
 		
-		String treeFile = pathjoin(File.separator, destFile, "tree", encode(notableTypeId) + ".txt");
-		String typeFile = pathjoin(File.separator, destFile, "tree", encode(notableTypeId) + "-types.txt");
-		
-		try {		
-			this.treeOut = new PrintStream(new FileOutputStream(treeFile));
-		} catch (IOException e) { 
-			System.err.println("(EE): " + e.getMessage() + ", file=\"" + treeFile + "\".");
-			System.exit(1);
-		} 
-		
 		try {
-			this.typeOut = new PrintStream(new FileOutputStream(typeFile));
-		} catch (IOException e) {
-			System.err.println("(EE): " + e.getMessage() + ", file=\"" + typeFile + "\".");
-			System.exit(1);
+			map.put("dat", initWriter(newpath(dest, encode(notableTypeID)) + ".dat"));
+			map.put("txt", initWriter(newpath(dest, encode(notableTypeID)) + ".txt"));
+			map.put("tsv", initWriter(newpath(dest, encode(notableTypeID)) + ".tsv"));
+		} catch (FileNotFoundException e) {
+			System.err.println("(EE): Error while initing out streams.");
+			System.exit(-1);
 		}
+	}
+	
+	private PrintWriter initWriter(String filepath) throws FileNotFoundException {
+		assert filepath != null;
+		
+		PrintWriter writer = null;		
+		try {
+			writer  = new PrintWriter(filepath);
+		} catch (FileNotFoundException e) {
+			System.err.println("(EE): File not found: \"" + filepath + "\".");
+			throw e;
+		}
+		return writer;
+	}
+	
+	private boolean makedirs(String pathname) {
+		assert pathname != null;
+		
+		return new File(pathname).mkdirs();
+	}
+	
+	private boolean existsDir(String pathname) {
+		assert pathname != null;
+		
+		return new File(pathname).isDirectory();
 	}
 		
 	@SuppressWarnings("deprecation")
@@ -96,24 +118,36 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 				@SuppressWarnings("unchecked")
 				Tree aTree = annotate(tree, priAnnotations, sndAnnotations);
 				
-				String svmExample = buildSVMExample(bow, aTree.toString());
-				treeOut.println(svmExample);
+				String example = buildSVMExample(bow, aTree.toString());
+				//String fileId = String.format("%04d", examplesNum);
+				map.get("dat").println(example);
 				
-				List<String> priEntityTypes = getEntityTypes(entity);
-				typeOut.println(join(SEPARATOR, priEntityTypes));
+				String priEntityTypes = join(SEPARATOR, getEntityTypes(entity));
+				map.get("tsv").println(priEntityTypes);
 				
-				examplesNum += 1;			
+				map.get("txt").println(sent.first());
+				examplesNum += 1;
+				
 				System.out.print(".");
 			}
 		}
 		
-		if (examplesNum >= maxExamples) { stop(); }
+		if (examplesNum >= maxExamples) {
+			ExamplesDownloader.running = false;
+			close();
+		}
+	}
+	
+	private void close() {
+		for (PrintWriter writer : map.values()) {
+			writer.close();
+		}
 	}
 	
 	private String buildBOW(String text) { 
 		assert text != null;
 		
-		List<Triple<String, Integer, Integer>> tokens = tokenizePTB3Escaping(text);
+		List<Triple<String, Integer, Integer>> tokens = tokenize(text);
 		return buildBOW(tokens);
 	}
 	
@@ -126,6 +160,13 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		}
 		sb.append(")");
 		return sb.toString();
+	}
+	
+	private List<Triple<String, Integer, Integer>> tokenize(String text) { 
+		assert text != null;
+		
+		return Tokenizer.getInstance().tokenizePTB3Escaping(text);
+		
 	}
 	
 	private List<Triple<String, Integer, Integer>> tokenizePTB3Escaping(String text) { 
@@ -141,9 +182,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 	}
 	
 	private void stop() { 
-		treeOut.close();
-		typeOut.close();
-		System.exit(0);
+		ExamplesDownloader.running = false;
 	}
 	
 	private String buildSVMExample(String bow, String tree) { 
@@ -163,7 +202,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		return Joiner.on(sep).join(parts);
 	}
 	
-	private static String pathjoin(String... parts) { 
+	private static String newpath(String... parts) { 
 		assert parts != null;
 		
 		return Joiner.on(File.separator).join(parts);
@@ -248,17 +287,12 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 	
 	private static AnnotationApi annotator = new BasicAnnotationApi();
 	
-	private int examplesNum = 0;
-	
 	private final HasType hasType;
 	
 	private final int maxExamples;
 	
-	private PrintStream treeOut;
+	private int examplesNum = 0;
 	
-	private PrintStream typeOut;
-	
-	
-	//private final Logger logger = Logger.getLogger(getClass().getName());
+	private Map<String, PrintWriter> map = new HashMap<>();
 	
 }
