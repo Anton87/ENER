@@ -19,6 +19,8 @@ public class IntRange implements Comparable<IntRange>, Externalizable {
 	
 	public int end() { return end; }
 	
+	public int len() { return end - start; }
+	
 	public boolean contains(final IntRange o) { 
 		if (o == null) throw new IllegalArgumentException("o: null");
 		return start <= o.start && end >= o.end;

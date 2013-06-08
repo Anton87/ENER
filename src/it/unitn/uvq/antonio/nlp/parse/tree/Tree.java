@@ -111,6 +111,28 @@ public final class Tree {
 		return this;
 	}
 	
+	// Implemented equality among trees.
+	// Not sure it will work.
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((tb == null) ? 0 : tb.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		Tree other = (Tree) obj;
+		return other.tb == tb;
+	}
+
 	TreeBuilder tb;
 	
 }

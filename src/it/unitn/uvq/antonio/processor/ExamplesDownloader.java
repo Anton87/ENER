@@ -9,12 +9,19 @@ import it.unitn.uvq.antonio.nlp.sent.SentSplitter;
 import it.unitn.uvq.antonio.util.tuple.Quadruple;
 import it.unitn.uvq.antonio.util.tuple.SimpleTriple;
 import it.unitn.uvq.antonio.util.tuple.Triple;
+import it.unitn.uvq.antonio.utils.DefaultMap;
 
 import java.io.File;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.StringTokenizer;
 import java.util.regex.Pattern;
+
+import com.google.common.base.Joiner;
 
 public class ExamplesDownloader {
 		
@@ -148,6 +155,8 @@ public class ExamplesDownloader {
 		return sb.toString();		
 	}
 	
+	
+	
 	private static FreebaseDB freebaseDB = new FreebaseDB();
 	
 	private static SentSplitter ssplitter = SentSplitter.getInstance();
@@ -209,10 +218,11 @@ public class ExamplesDownloader {
 			//"/education/school",
 			//"/government/government_agency",
 			//"/automotive/company",
+			"/military/armed_force"
 			//"/base/charities/charity",
 			//"/organization/non_profit_organization",
 			//"/music/record_label",
-			"/sports/sports_league",
+			//"/sports/sports_league",
 			//"/religion/religious_organization",
 			//"/music/musical_group",
 			//"/medicine/hospital"

@@ -2,7 +2,9 @@ package it.unitn.uvq.antonio.processor;
 
 import it.unitn.uvq.antonio.freebase.db.EntityI;
 import it.unitn.uvq.antonio.freebase.db.TypeI;
+import it.unitn.uvq.antonio.nlp.annotation.Annotation;
 import it.unitn.uvq.antonio.nlp.annotation.AnnotationApi;
+import it.unitn.uvq.antonio.nlp.annotation.AnnotationI;
 import it.unitn.uvq.antonio.nlp.annotation.BasicAnnotationApi;
 import it.unitn.uvq.antonio.nlp.annotation.TextAnnotation;
 import it.unitn.uvq.antonio.nlp.annotation.TextAnnotationI;
@@ -10,30 +12,27 @@ import it.unitn.uvq.antonio.nlp.parse.Parser;
 import it.unitn.uvq.antonio.nlp.parse.tree.Tree;
 import it.unitn.uvq.antonio.nlp.parse.tree.TreeBuilder;
 import it.unitn.uvq.antonio.nlp.tokenizer.Tokenizer;
-import it.unitn.uvq.antonio.processor.NEUtils.HasType;
 import it.unitn.uvq.antonio.util.IntRange;
 import it.unitn.uvq.antonio.util.tuple.Quadruple;
 import it.unitn.uvq.antonio.util.tuple.Quintuple;
-import it.unitn.uvq.antonio.util.tuple.SimpleQuadruple;
 import it.unitn.uvq.antonio.util.tuple.SimpleQuintuple;
 import it.unitn.uvq.antonio.util.tuple.Triple;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.PrintStream;
 import java.io.PrintWriter;
-import java.io.Writer;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.jar.Attributes.Name;
 
 import svmlighttk.SVMExampleBuilder;
 
@@ -49,7 +48,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		if (maxExamples < 0) throw new NullPointerException("maxExamples < 0: " + maxExamples);
 		
 		this.maxExamples = maxExamples;
-		this.hasType = NEUtils.hasType(namedEntityType);		
+		//this.hasType = NEUtils.hasType(namedEntityType);		
 		
 		try {
 			map.put("dat", initWriter(newpath(dest, encode(notableTypeID)) + ".dat"));
@@ -74,6 +73,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		return writer;
 	}
 	
+	/*
 	private boolean makedirs(String pathname) {
 		assert pathname != null;
 		
@@ -85,6 +85,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		
 		return new File(pathname).isDirectory();
 	}
+	*/
 		
 	@SuppressWarnings("deprecation")
 	private String encode(String str) {
@@ -101,7 +102,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 			List<Quadruple<String, String, Integer, Integer>> nes) {
 				
 		
-		List<String> priEntityNames = getEntityNames(entity);
+		//List<String> priEntityNames = getEntityNames(entity);
 		
 		
 		
@@ -121,11 +122,12 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 			return; 
 		}
 		
-		List<Triple<String, Integer, Integer>> tokens = tokenize(sent.first());
+		//List<Triple<String, Integer, Integer>> tokens = tokenize(sent.first());
 		
-		Set<Tree> terminalsGParents = getTerminalGranParents(tree);
+		//Set<Tree> terminalsGParents = getTerminalGranParents(tree);
 		
-		Set<Quintuple<String, String, String, Integer, Integer>> mentions = getMentions(entity, terminalsGParents, tokens, sent.first());
+		//Set<Quintuple<String, String, String, Integer, Integer>> mentions = getMentions(entity, terminalsGParents, tokens, sent.first());
+		Set<Quintuple<String, String, String, Integer, Integer>> mentions = getMentions(entity, tree, sent.first());
 		
 		priEntities.addAll(mentions);
 		for (Quadruple<String, String, Integer, Integer> ne : nes) {
@@ -153,7 +155,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 			List<TextAnnotationI> sndAnnotations = map(sndEntities, toAnnotation);
 			
 			if (isAtLeastOneAnnotable(tree, priAnnotations)) {
-				String bow = buildBOW(sent.first());
+				String bow = buildBOW(paragraph);
 				
 				Tree aTree = annotate(tree, priAnnotations, sndAnnotations);
 				
@@ -218,7 +220,70 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		return true;		
 	}
 	
+	private Set<Quintuple<String, String, String, Integer, Integer>> getMentions(EntityI entity, Tree tree, String sent) {
+		assert entity != null;
+		assert tree != null;
+		assert sent != null;
+		
+		Set<String> names = new HashSet<>(entity.getAliases());
+		names.add(entity.getName());
+		
+		System.out.println("(EE): names(entity): " + names);
+		System.out.println("(EE): sent: " + sent);
+		System.out.println("(EE): tree: " + tree);
+		
+		Set<Quintuple<String, String, String, Integer, Integer>> mentions = new HashSet<>();
+		
+		// Compute the spans of all the name appearing in a dict
+		Set<IntRange> nameSpans = new HashSet<>(); 
+		for (String name : names) {
+			if (sent.contains(name)) {
+				IntRange nameSpan = getTreeSubspan(name, sent, tree);
+				
+				/* This may happen when an entity name or alias differs for some letters
+				 * from the text in the sentence.
+				 */
+				if (nameSpan == null) continue;
+				
+				System.out.println("(EE): span(\"" + name + "\"): " + nameSpan);
+				
+				TextAnnotation a = new TextAnnotation("NE", nameSpan.start(), nameSpan.end());
+				TreeBuilder tb = new TreeBuilder(tree);
+				if (annotator.isAnnotable(a, tb)) {
+					IntRange otherNameSpan = checkAndReturnOverlap(nameSpan, nameSpans);
+					if (otherNameSpan == null) {
+						nameSpans.add(nameSpan);
+					} else if (nameSpan.len() > otherNameSpan.len()) {
+						nameSpans.remove(otherNameSpan);
+						nameSpans.add(nameSpan);
+					}
+				}
+			}
+		}
+		
+		
+		for (IntRange span : nameSpans) {
+			String name = sent.substring(span.start(), span.end());
+			Quintuple<String, String, String, Integer, Integer> mention = 
+				new SimpleQuintuple<String, String, String, Integer, Integer>(name, "", "NE", span.start(), span.end());
+			mentions.add(mention);
+		}
+		return mentions;		
+	}
 	
+	
+	private IntRange checkAndReturnOverlap(IntRange span, Set<IntRange> spans) {
+		assert span != null;
+		assert spans != null;
+		
+		for (IntRange otherSpan : spans) { 
+			if (otherSpan.overlap(span)) {
+				return otherSpan;
+			}
+		}
+		return null;
+	}
+
 	private Set<Quintuple<String, String, String, Integer, Integer>> getMentions(EntityI entity, Set<Tree> terminalsGParents, List<Triple<String, Integer, Integer>> tokens, String sent) {
 		assert entity != null;
 		assert terminalsGParents != null;
@@ -227,28 +292,91 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		Set<String> names = new HashSet<>(entity.getAliases());
 		names.add(entity.getName());
 		
+		System.out.println("(EE): names(entity): " + names);
+		
+		System.out.println("(EE): sent: " + sent);
+		
 		Set<Quintuple<String, String, String, Integer, Integer>> mentions = new HashSet<>();
 		
-		//System.out.println("(EE): mentions: " + mentions);		
-		//System.out.println("(EE): sent(0, " + sent.length() + "): " + sent);
 		for (Tree gParent : terminalsGParents) {
 			IntRange span = gParent.getSpan();
-			//System.out.println("(EE): tree: " + gParent.getRoot());
-			//System.out.println("(EE): gParent: " + gParent);
-			//System.out.println("(EE): span(gParent): " + span);
 			String text = sent.substring(span.start(), span.end());
-			if (names.contains(text)) {
-				//IntRange nodesSpan = find(span.start(), span.end(), gParent.getRoot());
-				//Quintuple<String, String, String, Integer, Integer> mention = 
-				//		new SimpleQuintuple<>(text, "ORGANIZATION", "NE", nodesSpan.start(), nodesSpan.end());
-				Quintuple<String, String, String, Integer, Integer> mention = 
-						new SimpleQuintuple<>(text, "ORGANIZATION", "NE", span.start(), span.end());
-				// An entity mention found.
-				mentions.add(mention);			
+			System.out.println("(EE): constituency: " + text);
+			//if (names.contains(text)) {
+			List<String> namesInText = getNamesInText(text, names);
+			System.out.println("(EE): names found: " + namesInText);
+			
+			if (!namesInText.isEmpty()) {
+				String maxLenName = getLongestName(namesInText);
+				System.out.println("(EE): Found name \"" + maxLenName + "\" in subtree: \"" + gParent + "\".");
+				
+				// Get the span of the portion of subtree containing the name
+				IntRange nameSpan = getTreeSubspan(maxLenName, sent, gParent);
+				
+				/* This may happend when an entity name or alias differs by the name in the sent
+				 * for some letter.
+				 */
+				if (nameSpan != null) {
+					Quintuple<String, String, String, Integer, Integer> mention = 
+						new SimpleQuintuple<>(text, "ORGANIZATION", "NE", nameSpan.start(), nameSpan.end());
+					// An entity mention found.
+					mentions.add(mention);
+				}
 			}
 		}
 		return mentions;
 	}
+	
+	private IntRange getTreeSubspan(String pattern, String text, Tree tree) {
+		assert pattern != null;
+		assert text != null;
+		assert tree != null;
+		
+		int start;
+		int end;
+		
+		IntRange span = null;
+		List<Tree> leaves = tree.getLeaves();
+		for (int i = 0; i < leaves.size(); i++) {
+			start = i;
+			for (int j = i + 1; j <= leaves.size(); j++) {
+				end = j;
+				start = leaves.get(i).getSpan().start();
+				end = leaves.get(j - 1).getSpan().end();
+				
+				if (text.substring(start, end).equals(pattern)) {
+					return new IntRange(start, end);					
+				}
+			}
+		}
+		return null;		
+	}
+	
+	private String getLongestName(List<String> names) {
+		assert names != null;
+		
+		Collections.sort(names, strLenCmp);
+		return names.get(0);
+	}
+	
+	/**
+	 * Returns all the names in teh list contains in the specified text.
+	 * 
+	 */
+	private List<String> getNamesInText(String text, Collection<String> names) {
+		assert text != null;
+		assert names != null;
+		
+		List<String> namesFound = new ArrayList<>();
+ 		for (Iterator<String> it = names.iterator(); it.hasNext(); ) {
+			String name = it.next();
+			if (text.contains(name)) { names.add(name); }
+		}
+ 		return namesFound;
+	}
+	
+	
+	
 	
 	private IntRange find(int beginCh, int endCh, Tree tree) {
 		assert beginCh >= 0;
@@ -431,12 +559,20 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 	
 	private static AnnotationApi annotator = new BasicAnnotationApi();
 	
-	private final HasType hasType;
+	// private final HasType hasType;
 	
 	private final int maxExamples;
 	
 	private int examplesNum = 0;
 	
 	private Map<String, PrintWriter> map = new HashMap<>();
+	
+	private Comparator<String> strLenCmp = new Comparator<String>() {
+
+		@Override
+		public int compare(String o1, String o2) {
+			return o2.length() - o1.length();
+		}		
+	};
 	
 }
