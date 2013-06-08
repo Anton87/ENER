@@ -16,9 +16,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
-public class ExamplesDownloader {
+public class PERExamplesDownloader {
 		
-	public ExamplesDownloader(String notableTypeId, int examplesPerTime, ExamplesBuilder builder) { 
+	public PERExamplesDownloader(String notableTypeId, int examplesPerTime, ExamplesBuilder builder) { 
 		if (notableTypeId == null) throw new NullPointerException("notableTypeId: null");
 		if (examplesPerTime <= 0) throw new IllegalArgumentException("examplesPerTime <= 0: " + examplesPerTime);
 		if (builder == null) throw new NullPointerException("builder: null");
@@ -46,7 +46,6 @@ public class ExamplesDownloader {
 				mids = retrieveMidsByNotableTypeId(notableTypeId, offset, examplesPerTime);
 				offset += mids.size();
 			}
-			if (mids.isEmpty()) { System.out.println("(EE): Scanned " + offset + " examples."); }
 		}
 		
 	}
@@ -74,36 +73,17 @@ public class ExamplesDownloader {
 								
 				List<Quadruple<String, String, Integer, Integer>> nes = classify(normalizedSent.first());
 				
-				if (contains(normalizedSent.first(), entity)) {				
+				if (!nes.isEmpty()) { 
+				
 					try {
 						builder.process(mid, entity, paragraph, normalizedSent, nes);
 					} catch (OutOfMemoryError e) {
-						System.out.print("*");
+						System.out.print("x");
 					} 
 				}			
 			}	
 		}	
 	}
-	
-	private boolean contains(String sent, EntityI entity) {   
-		assert entity != null;
-		assert sent != null;
-		
-		return sent.contains(entity.getName()) ||
-			   contains(sent, entity.getAliases());		
-	}
-	
-	private boolean contains(String sent, List<String> strs) {
-		assert sent != null;
-		assert strs != null;
-		
-		for (String str : strs) { 
-			if (sent.contains(str)) return true;
-		}
-		return false;
-	}
-	
-	
 	
 	private List<String> retrieveMidsByNotableTypeId(String id, int offset, int examplesNum) { 
 		assert id != null;
@@ -180,49 +160,26 @@ public class ExamplesDownloader {
 		
 		/*
 		 * Person notable-types.
-		 *
-		 *	String[] notableTypeIDs = new String[] {
-		 *	"/architecture/architect",
-		 *	"/education/academic",
-		 *	"/en/model",
-		 *	"/en/physician",
-		 *	"/en/writer",
-		 *	"/film/actor",
-		 *	"/government/politician",
-		 *	"/music/artist",
-		 *	"/sports/pro_athlete",			
-		 *	"/visual_art/visual_artist"
-		 *	};
 		 */
-
-		/* 
-		 * Organization notable-types
-		 */
-		String[] notableTypeIDs = new String[] {
-			//"/tv/tv_network",
-			//"sports/sports_team",
-			//"/business/business_operation",
-			//"/business/industry",
-			//"/government/political_party",
-			//"/military/armed_force",
-			//"/aviation/airline",
-			//"/education/school",
-			//"/government/government_agency",
-			//"/automotive/company",
-			//"/base/charities/charity",
-			//"/organization/non_profit_organization",
-			//"/music/record_label",
-			"/sports/sports_league",
-			//"/religion/religious_organization",
-			//"/music/musical_group",
-			//"/medicine/hospital"
-		};
+		 	String[] notableTypeIDs = new String[] {
+		 	"/architecture/architect",
+		 	"/education/academic",
+		 	"/en/model",
+		 	"/en/physician",
+		 	"/en/writer",
+		 	"/film/actor",
+		 	"/government/politician",
+		 	"/music/artist",
+		 	"/sports/pro_athlete",			
+		 	"/visual_art/visual_artist"
+		 };
+		 
 
 		for (String entityTypeId : notableTypeIDs) {
 			String destFile = "/home/antonio/Scrivania/sshdir_loc/tree/ORG/data/" + encode(entityTypeId);
 			if (!new File(destFile).isDirectory()) new File(destFile).mkdirs(); 
-			ExamplesBuilder builder  = new TreeExamplesBuilder(priEntityType, entityTypeId, examplesNum, destFile);
-			ExamplesDownloader downloader = new ExamplesDownloader(entityTypeId, examplesNum, builder);
+			PERTreeExamplesBuilder builder  = new PERTreeExamplesBuilder(priEntityType, entityTypeId, examplesNum, destFile);
+			PERExamplesDownloader downloader = new PERExamplesDownloader(entityTypeId, examplesNum, builder);
 			downloader.run();
 		}
 	}

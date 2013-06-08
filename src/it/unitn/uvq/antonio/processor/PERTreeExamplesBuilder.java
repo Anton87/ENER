@@ -11,11 +11,8 @@ import it.unitn.uvq.antonio.nlp.parse.tree.Tree;
 import it.unitn.uvq.antonio.nlp.parse.tree.TreeBuilder;
 import it.unitn.uvq.antonio.nlp.tokenizer.Tokenizer;
 import it.unitn.uvq.antonio.processor.NEUtils.HasType;
-import it.unitn.uvq.antonio.util.IntRange;
 import it.unitn.uvq.antonio.util.tuple.Quadruple;
 import it.unitn.uvq.antonio.util.tuple.Quintuple;
-import it.unitn.uvq.antonio.util.tuple.SimpleQuadruple;
-import it.unitn.uvq.antonio.util.tuple.SimpleQuintuple;
 import it.unitn.uvq.antonio.util.tuple.Triple;
 
 import java.io.File;
@@ -27,13 +24,10 @@ import java.io.PrintWriter;
 import java.io.Writer;
 import java.net.URLEncoder;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import svmlighttk.SVMExampleBuilder;
 
@@ -41,9 +35,9 @@ import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Collections2;
 
-public class TreeExamplesBuilder extends ExamplesBuilder {
+public class PERTreeExamplesBuilder extends ExamplesBuilder {
 	
-	public TreeExamplesBuilder(String namedEntityType, String notableTypeID, int maxExamples, String dest) {
+	public PERTreeExamplesBuilder(String namedEntityType, String notableTypeID, int maxExamples, String dest) {
 		super(namedEntityType, notableTypeID);
 		if (dest == null) throw new NullPointerException("destFile: null");
 		if (maxExamples < 0) throw new NullPointerException("maxExamples < 0: " + maxExamples);
@@ -99,80 +93,18 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 			String mid, EntityI entity, String paragraph,
 			Triple<String, Integer, Integer> sent,
 			List<Quadruple<String, String, Integer, Integer>> nes) {
-				
+		
 		
 		List<String> priEntityNames = getEntityNames(entity);
 		
-		
-		
-		//NEUtils.ResultSet rs = NEUtils.getInstance().getRankedEntities(nes, priEntityNames, priEntityType);
+		NEUtils.ResultSet rs = NEUtils.getInstance().getRankedEntities(nes, priEntityNames, priEntityType);
 	
-		List<Quintuple<String, String, String, Integer, Integer>> priEntities = new ArrayList<>();
+		List<Quintuple<String, String, String, Integer, Integer>> priEntities = rs.filter(NEUtils.IsPrimary).entities();
 		
-		List<Quintuple<String, String, String, Integer, Integer>> sndEntities = new ArrayList<>();
-		
-		
-		
-		Tree tree = parse(sent.first());
-		
-		if (!isWellFormedTree(tree)) {
-			System.out.println("X");
-			System.out.println("(EE): X-Tree: " + tree);
-			return; 
-		}
-		
-		List<Triple<String, Integer, Integer>> tokens = tokenize(sent.first());
-		
-		Set<Tree> terminalsGParents = getTerminalGranParents(tree);
-		
-		Set<Quintuple<String, String, String, Integer, Integer>> mentions = getMentions(entity, terminalsGParents, tokens, sent.first());
-		
-		priEntities.addAll(mentions);
-		for (Quadruple<String, String, Integer, Integer> ne : nes) {
-			if (!ne.second().equals(priEntityType)) { continue; }
-			boolean overlap = false;
-			for (int i = 0; !overlap && i < priEntities.size(); i++) {
-				Quintuple<String, String, String, Integer, Integer> priNe = priEntities.get(i);
-				IntRange neSpan = new IntRange(ne.third(), ne.fourth());
-				IntRange priSpan = new IntRange(priNe.fourth(), priNe.fifth());
-				overlap = neSpan.overlap(priSpan);
-			}
-			if (!overlap) {
-				Quintuple<String, String, String, Integer, Integer> sndNe = 
-						new SimpleQuintuple<String, String, String, Integer, Integer>(ne.first(), ne.second(), "AE", ne.third(), ne.fourth());
-				sndEntities.add(sndNe);
-			}			
-		}
-		
-		//System.out.println("(EE): Tree: " + tree);		
-		//System.out.println("(EE): Sent: " + sent.first());
-		//System.out.println("(EE): Entity Mentions: " + mentions);
-		
-		if (!priEntities.isEmpty()) {
-			List<TextAnnotationI> priAnnotations = map(priEntities, toAnnotation);
-			List<TextAnnotationI> sndAnnotations = map(sndEntities, toAnnotation);
-			
-			if (isAtLeastOneAnnotable(tree, priAnnotations)) {
-				String bow = buildBOW(sent.first());
-				
-				Tree aTree = annotate(tree, priAnnotations, sndAnnotations);
-				
-				String example = buildSVMExample(bow, aTree.toString());
-				map.get("dat").println(example);
-				
-				String priEntityTypes = join(SEPARATOR, getEntityTypes(entity));
-				map.get("tsv").println(priEntityTypes);
-				
-				map.get("txt").println(sent.first());
-				examplesNum += 1;
-				
-				System.out.print(".");				
-			}
-			
-		}
-		
-		
-		/*
+		List<Quintuple<String, String, String, Integer, Integer>> sndEntities = rs
+				.filter(NEUtils.IsSecondary)
+				.filter(hasType)
+				.entities();		
 		
 		if (!priEntities.isEmpty()) {
 			
@@ -180,8 +112,6 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 			List<TextAnnotationI> sndAnnotations = map(sndEntities, toAnnotation);
 			
 			Tree tree = parse(sent.first());
-			
-			List<Tree> terminalGParents = getTerminalGranParents(tree);
 			
 			if(isAtLeastOneAnnotable(tree, priAnnotations)) {
 				String bow = buildBOW(sent.first());
@@ -201,85 +131,11 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 				System.out.print(".");
 			}
 		}
-		*/
 		
 		if (examplesNum >= maxExamples) {
 			ExamplesDownloader.running = false;
 			close();
 		}
-	}
-	
-	private boolean isWellFormedTree(Tree tree) {
-		for (Tree node : tree.getNodes()) {
-			if (!node.isLeaf() && node.getText().equals("X")) {
-				return false;
-			}
-		}
-		return true;		
-	}
-	
-	
-	private Set<Quintuple<String, String, String, Integer, Integer>> getMentions(EntityI entity, Set<Tree> terminalsGParents, List<Triple<String, Integer, Integer>> tokens, String sent) {
-		assert entity != null;
-		assert terminalsGParents != null;
-		assert sent != null;
-		
-		Set<String> names = new HashSet<>(entity.getAliases());
-		names.add(entity.getName());
-		
-		Set<Quintuple<String, String, String, Integer, Integer>> mentions = new HashSet<>();
-		
-		//System.out.println("(EE): mentions: " + mentions);		
-		//System.out.println("(EE): sent(0, " + sent.length() + "): " + sent);
-		for (Tree gParent : terminalsGParents) {
-			IntRange span = gParent.getSpan();
-			//System.out.println("(EE): tree: " + gParent.getRoot());
-			//System.out.println("(EE): gParent: " + gParent);
-			//System.out.println("(EE): span(gParent): " + span);
-			String text = sent.substring(span.start(), span.end());
-			if (names.contains(text)) {
-				//IntRange nodesSpan = find(span.start(), span.end(), gParent.getRoot());
-				//Quintuple<String, String, String, Integer, Integer> mention = 
-				//		new SimpleQuintuple<>(text, "ORGANIZATION", "NE", nodesSpan.start(), nodesSpan.end());
-				Quintuple<String, String, String, Integer, Integer> mention = 
-						new SimpleQuintuple<>(text, "ORGANIZATION", "NE", span.start(), span.end());
-				// An entity mention found.
-				mentions.add(mention);			
-			}
-		}
-		return mentions;
-	}
-	
-	private IntRange find(int beginCh, int endCh, Tree tree) {
-		assert beginCh >= 0;
-		assert endCh > beginCh;
-		assert tree != null;
-		
-		List<Tree> leaves = new ArrayList<>();
-		int startNode = 0;
-		int endNode = 0;
-		for (int i = 0; i < leaves.size(); i++) {
-			Tree leaf = leaves.get(i);
-					
-			if (leaf.getSpan().start() == beginCh) {
-				startNode = i;
-			}
-			if (leaf.getSpan().end() == endCh) {
-				endNode = i + 1;
-			}
-		}
-		return new IntRange(startNode, endNode);		
-	}
-	
-	private Set<Tree> getTerminalGranParents(Tree tree) {
-		assert tree != null;
-		
-		Set<Tree> gParents = new HashSet<>();
-		for (Tree leaf : tree.getLeaves()) {
-			Tree gParent = leaf.getParent().getParent();
-			gParents.add(gParent);
-		}
-		return gParents;
 	}
 	
 	private void close() {

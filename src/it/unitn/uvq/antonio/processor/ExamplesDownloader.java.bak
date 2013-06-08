@@ -46,7 +46,6 @@ public class ExamplesDownloader {
 				mids = retrieveMidsByNotableTypeId(notableTypeId, offset, examplesPerTime);
 				offset += mids.size();
 			}
-			if (mids.isEmpty()) { System.out.println("(EE): Scanned " + offset + " examples."); }
 		}
 		
 	}
@@ -74,36 +73,17 @@ public class ExamplesDownloader {
 								
 				List<Quadruple<String, String, Integer, Integer>> nes = classify(normalizedSent.first());
 				
-				if (contains(normalizedSent.first(), entity)) {				
+				if (!nes.isEmpty()) { 
+				
 					try {
 						builder.process(mid, entity, paragraph, normalizedSent, nes);
 					} catch (OutOfMemoryError e) {
-						System.out.print("*");
+						System.out.print("x");
 					} 
 				}			
 			}	
 		}	
 	}
-	
-	private boolean contains(String sent, EntityI entity) {   
-		assert entity != null;
-		assert sent != null;
-		
-		return sent.contains(entity.getName()) ||
-			   contains(sent, entity.getAliases());		
-	}
-	
-	private boolean contains(String sent, List<String> strs) {
-		assert sent != null;
-		assert strs != null;
-		
-		for (String str : strs) { 
-			if (sent.contains(str)) return true;
-		}
-		return false;
-	}
-	
-	
 	
 	private List<String> retrieveMidsByNotableTypeId(String id, int offset, int examplesNum) { 
 		assert id != null;
@@ -199,8 +179,8 @@ public class ExamplesDownloader {
 		 * Organization notable-types
 		 */
 		String[] notableTypeIDs = new String[] {
-			//"/tv/tv_network",
-			//"sports/sports_team",
+			"/tv/tv_network",
+			"sports/sports_team"
 			//"/business/business_operation",
 			//"/business/industry",
 			//"/government/political_party",
@@ -212,7 +192,7 @@ public class ExamplesDownloader {
 			//"/base/charities/charity",
 			//"/organization/non_profit_organization",
 			//"/music/record_label",
-			"/sports/sports_league",
+			//"/sports/sports_league",
 			//"/religion/religious_organization",
 			//"/music/musical_group",
 			//"/medicine/hospital"
