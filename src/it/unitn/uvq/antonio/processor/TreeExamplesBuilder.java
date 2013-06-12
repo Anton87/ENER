@@ -13,8 +13,10 @@ import it.unitn.uvq.antonio.nlp.parse.tree.Tree;
 import it.unitn.uvq.antonio.nlp.parse.tree.TreeBuilder;
 import it.unitn.uvq.antonio.nlp.tokenizer.Tokenizer;
 import it.unitn.uvq.antonio.util.IntRange;
+import it.unitn.uvq.antonio.util.tuple.Pair;
 import it.unitn.uvq.antonio.util.tuple.Quadruple;
 import it.unitn.uvq.antonio.util.tuple.Quintuple;
+import it.unitn.uvq.antonio.util.tuple.SimplePair;
 import it.unitn.uvq.antonio.util.tuple.SimpleQuintuple;
 import it.unitn.uvq.antonio.util.tuple.Triple;
 
@@ -72,20 +74,6 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		}
 		return writer;
 	}
-	
-	/*
-	private boolean makedirs(String pathname) {
-		assert pathname != null;
-		
-		return new File(pathname).mkdirs();
-	}
-	
-	private boolean existsDir(String pathname) {
-		assert pathname != null;
-		
-		return new File(pathname).isDirectory();
-	}
-	*/
 		
 	@SuppressWarnings("deprecation")
 	private String encode(String str) {
@@ -97,14 +85,12 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 	
 	@Override
 	public void process(String priEntityType, String notableTypeId,
-			String mid, EntityI entity, String paragraph,
+			String mid, EntityI entity, String alias, List<String> acronyms, String paragraph,
 			Triple<String, Integer, Integer> sent,
 			List<Quadruple<String, String, Integer, Integer>> nes) {
 				
 		
 		//List<String> priEntityNames = getEntityNames(entity);
-		
-		
 		
 		//NEUtils.ResultSet rs = NEUtils.getInstance().getRankedEntities(nes, priEntityNames, priEntityType);
 	
@@ -122,13 +108,34 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 			return; 
 		}
 		
-		//List<Triple<String, Integer, Integer>> tokens = tokenize(sent.first());
+		// The list of primary entities appearing in the sentence.
+		priEntities = getMentions(entity, tree, sent.first());
 		
-		//Set<Tree> terminalsGParents = getTerminalGranParents(tree);
+		// The lis of additional entities appearing in the sentence.
+		List<Quintuple<String, String, String, Integer, Integer>> aes = new ArrayList<>();
+		for (Quadruple<String, String, Integer, Integer> ne : nes) { 
+			Quintuple<String, String, String, Integer, Integer> ae = 
+					new SimpleQuintuple<>(ne.first(), ne.second(), "AE", ne.third(), ne.fourth());
+			aes.add(ae);
+		}
 		
-		//Set<Quintuple<String, String, String, Integer, Integer>> mentions = getMentions(entity, terminalsGParents, tokens, sent.first());
-		Set<Quintuple<String, String, String, Integer, Integer>> mentions = getMentions(entity, tree, sent.first());
+		/* We keep only the additional entities (AE) with the same 
+		 * named entity type of our primary entity. */
+		aes = new ArrayList<>(
+				Collections2.filter(aes, NEUtils.hasType(priEntityType)));
 		
+		List<Pair<Quintuple<String, String, String, Integer, Integer>,
+			      Quintuple<String, String, String, Integer, Integer>>> overlaps = findOverlaps(priEntities, aes);
+		
+		
+		/* Remove the additional entities which overlap primary entities. */
+		for (Pair<Quintuple<String, String, String, Integer, Integer>,
+				  Quintuple<String, String, String, Integer, Integer>> overlap : overlaps) {
+			aes.remove(overlap.second());
+		}
+			     
+		
+		/*
 		priEntities.addAll(mentions);
 		for (Quadruple<String, String, Integer, Integer> ne : nes) {
 			if (!ne.second().equals(priEntityType)) { continue; }
@@ -145,6 +152,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 				sndEntities.add(sndNe);
 			}			
 		}
+		*/
 		
 		//System.out.println("(EE): Tree: " + tree);		
 		//System.out.println("(EE): Sent: " + sent.first());
@@ -178,6 +186,57 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		}
 	}
 	
+	/**
+	 * Find and return overlaps between two list of named entities.
+	 * 
+	 * @param ents1 A list of entities 
+	 * @param ents2 A list of entities
+	 * @return A list hilding the overlapping pairs of entities 
+	 */
+	private List<Pair<Quintuple<String, String, String, Integer, Integer>, Quintuple<String, String, String, Integer, Integer>>> findOverlaps(
+			List<Quintuple<String, String, String, Integer, Integer>> ents1,
+			List<Quintuple<String, String, String, Integer, Integer>> ents2) {
+		assert ents1 != null;
+		assert ents2 != null;
+		
+		
+		List<Pair<Quintuple<String, String, String, Integer, Integer>, Quintuple<String, String, String, Integer, Integer>>> overlaps = new
+				ArrayList<>();
+		for (Quintuple<String, String, String, Integer, Integer> e1 : ents1) {
+			
+			IntRange e1Span = new IntRange(e1.fourth(), e1.fifth());
+			for (Quintuple<String, String, String, Integer, Integer> e2 : ents2) {
+				IntRange e2Span = new IntRange(e2.fourth(), e2.fourth());
+				if (e1Span.overlap(e2Span)) {
+					Pair<Quintuple<String, String, String, Integer, Integer>,
+					     Quintuple<String, String, String, Integer, Integer>> overlap =
+					     new SimplePair<>(e1, e2);
+					overlaps.add(overlap);
+				}
+			}			
+		}
+		return overlaps;
+		
+		/*
+		priEntities.addAll(mentions);
+		for (Quadruple<String, String, Integer, Integer> ne : nes) {
+			if (!ne.second().equals(priEntityType)) { continue; }
+			boolean overlap = false;
+			for (int i = 0; !overlap && i < priEntities.size(); i++) {
+				Quintuple<String, String, String, Integer, Integer> priNe = priEntities.get(i);
+				IntRange neSpan = new IntRange(ne.third(), ne.fourth());
+				IntRange priSpan = new IntRange(priNe.fourth(), priNe.fifth());
+				overlap = neSpan.overlap(priSpan);
+			}
+			if (!overlap) {
+				Quintuple<String, String, String, Integer, Integer> sndNe = 
+						new SimpleQuintuple<String, String, String, Integer, Integer>(ne.first(), ne.second(), "AE", ne.third(), ne.fourth());
+				sndEntities.add(sndNe);
+			}			
+		}
+		*/
+	}
+	
 	private boolean isWellFormedTree(Tree tree) {
 		for (Tree node : tree.getNodes()) {
 			if (!node.isLeaf() && node.getText().equals("X")) {
@@ -187,12 +246,12 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		return true;		
 	}
 	
-	private Set<Quintuple<String, String, String, Integer, Integer>> getMentions(EntityI entity, Tree tree, String sent) {
+	private List<Quintuple<String, String, String, Integer, Integer>> getMentions(EntityI entity, Tree tree, String sent) {
 		assert entity != null;
 		assert tree != null;
 		assert sent != null;
 		
-		Set<String> names = new HashSet<>(entity.getAliases());
+		Set<String> names = new HashSet<>(entity.getAliases());		
 		names.add(entity.getName());
 		
 		//System.out.println("(EE): names(entity): " + names);
@@ -201,8 +260,8 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		
 		Set<Quintuple<String, String, String, Integer, Integer>> mentions = new HashSet<>();
 		
-		// Compute the spans of all the name appearing in a dict
-		Set<IntRange> nameSpans = new HashSet<>(); 
+		// Compute the spans of all the names appearing in the tree
+		List<IntRange> nameSpans = new ArrayList<>(); 
 		for (String name : names) {
 			if (sent.contains(name)) {
 				IntRange nameSpan = getTreeSubspan(name, sent, tree);
@@ -217,12 +276,16 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 				TextAnnotation a = new TextAnnotation("NE", nameSpan.start(), nameSpan.end());
 				TreeBuilder tb = new TreeBuilder(tree);
 				if (annotator.isAnnotable(a, tb)) {
-					IntRange otherNameSpan = checkAndReturnOverlap(nameSpan, nameSpans);
-					if (otherNameSpan == null) {
+					IntRange oldNameSpan = checkAndReturnOverlap(nameSpan, nameSpans);
+					if (oldNameSpan == null) {
 						nameSpans.add(nameSpan);
-					} else if (nameSpan.len() > otherNameSpan.len()) {
-						nameSpans.remove(otherNameSpan);
-						nameSpans.add(nameSpan);
+					/* If a valid mention for another name has already found, 
+					 * keep the longest one.
+					 */
+					} else if (nameSpan.len() > oldNameSpan.len()) {
+						Collections.replaceAll(nameSpans, oldNameSpan, nameSpan);
+						// nameSpans.remove(otherNameSpan);
+						// nameSpans.add(nameSpan);					
 					}
 				}
 			}
@@ -232,66 +295,24 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		for (IntRange span : nameSpans) {
 			String name = sent.substring(span.start(), span.end());
 			Quintuple<String, String, String, Integer, Integer> mention = 
-				new SimpleQuintuple<String, String, String, Integer, Integer>(name, "", "NE", span.start(), span.end());
+				new SimpleQuintuple<>(name, "", "NE", span.start(), span.end());
 			mentions.add(mention);
 		}
-		return mentions;		
+		return new ArrayList<Quintuple<String, String, String, Integer, Integer>>(mentions);		
 	}
 	
 	
-	private IntRange checkAndReturnOverlap(IntRange span, Set<IntRange> spans) {
+	private IntRange checkAndReturnOverlap(IntRange span, List<IntRange> spans) {
 		assert span != null;
 		assert spans != null;
 		
-		for (IntRange otherSpan : spans) { 
-			if (otherSpan.overlap(span)) {
-				return otherSpan;
+		for (IntRange oSpan : spans) { 
+			if (oSpan.overlap(span)) {
+				return oSpan;
 			}
 		}
 		return null;
 	}
-
-	/*
-	private Set<Quintuple<String, String, String, Integer, Integer>> getMentions(EntityI entity, Set<Tree> terminalsGParents, List<Triple<String, Integer, Integer>> tokens, String sent) {
-		assert entity != null;
-		assert terminalsGParents != null;
-		assert sent != null;
-		
-		Set<String> names = new HashSet<>(entity.getAliases());
-		names.add(entity.getName());
-		
-		//System.out.println("(EE): names(entity): " + names);
-		
-		//System.out.println("(EE): sent: " + sent);
-		
-		Set<Quintuple<String, String, String, Integer, Integer>> mentions = new HashSet<>();
-		
-		for (Tree gParent : terminalsGParents) {
-			IntRange span = gParent.getSpan();
-			String text = sent.substring(span.start(), span.end());
-			//System.out.println("(EE): constituency: " + text);
-			//if (names.contains(text)) {
-			List<String> namesInText = getNamesInText(text, names);
-			System.out.println("(EE): names found: " + namesInText);
-			
-			if (!namesInText.isEmpty()) {
-				String maxLenName = getLongestName(namesInText);
-				System.out.println("(EE): Found name \"" + maxLenName + "\" in subtree: \"" + gParent + "\".");
-				
-				// Get the span of the portion of subtree containing the name
-				IntRange nameSpan = getTreeSubspan(maxLenName, sent, gParent);
-				
-				if (nameSpan != null) {
-					Quintuple<String, String, String, Integer, Integer> mention = 
-						new SimpleQuintuple<>(text, "ORGANIZATION", "NE", nameSpan.start(), nameSpan.end());
-					// An entity mention found.
-					mentions.add(mention);
-				}
-			}
-		}
-		return mentions;
-	}
-	*/
 	
 	private IntRange getTreeSubspan(String pattern, String text, Tree tree) {
 		assert pattern != null;
@@ -319,64 +340,6 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 			}
 		}
 		return null;		
-	}
-	
-	private String getLongestName(List<String> names) {
-		assert names != null;
-		
-		Collections.sort(names, strLenCmp);
-		return names.get(0);
-	}
-	
-	/**
-	 * Returns all the names in teh list contains in the specified text.
-	 * 
-	 */
-	private List<String> getNamesInText(String text, Collection<String> names) {
-		assert text != null;
-		assert names != null;
-		
-		List<String> namesFound = new ArrayList<>();
- 		for (Iterator<String> it = names.iterator(); it.hasNext(); ) {
-			String name = it.next();
-			if (text.contains(name)) { names.add(name); }
-		}
- 		return namesFound;
-	}
-	
-	
-	
-	
-	private IntRange find(int beginCh, int endCh, Tree tree) {
-		assert beginCh >= 0;
-		assert endCh > beginCh;
-		assert tree != null;
-		
-		List<Tree> leaves = new ArrayList<>();
-		int startNode = 0;
-		int endNode = 0;
-		for (int i = 0; i < leaves.size(); i++) {
-			Tree leaf = leaves.get(i);
-					
-			if (leaf.getSpan().start() == beginCh) {
-				startNode = i;
-			}
-			if (leaf.getSpan().end() == endCh) {
-				endNode = i + 1;
-			}
-		}
-		return new IntRange(startNode, endNode);		
-	}
-	
-	private Set<Tree> getTerminalGranParents(Tree tree) {
-		assert tree != null;
-		
-		Set<Tree> gParents = new HashSet<>();
-		for (Tree leaf : tree.getLeaves()) {
-			Tree gParent = leaf.getParent().getParent();
-			gParents.add(gParent);
-		}
-		return gParents;
 	}
 	
 	private void close() {
@@ -486,14 +449,6 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		return tb;
 	}
 	
-	private List<String> getEntityNames(EntityI entity) { 
-		assert entity != null;
-		
-		List<String> names = new ArrayList<>(entity.getAliases());
-		if (entity.getName() != null) { names.add(0, entity.getName()); }
-		return names;
-	}
-	
 	private List<String> getEntityTypes(EntityI entity) {
 		assert entity != null;
 		
@@ -536,6 +491,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 	
 	private Map<String, PrintWriter> map = new HashMap<>();
 	
+	/*
 	private Comparator<String> strLenCmp = new Comparator<String>() {
 
 		@Override
@@ -543,5 +499,6 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 			return o2.length() - o1.length();
 		}		
 	};
+	*/
 	
 }

@@ -17,17 +17,30 @@ public abstract class ExamplesBuilder {
 		this.notableTypeId = notableTypeId;
 	}
 	
-	void process(String mid, EntityI entity, String paragraph, Triple<String, Integer, Integer> sent, List<Quadruple<String, String, Integer, Integer>> nes) {
-		process(namedEntityType, notableTypeId, mid, entity, paragraph, sent, nes);
+	void process(String mid, EntityI entity, String alias, List<String> acronyms, String paragraph, Triple<String, Integer, Integer> sent, List<Quadruple<String, String, Integer, Integer>> nes) {
+		process(namedEntityType, notableTypeId, mid, entity, alias, acronyms, paragraph, sent, nes);
 	}
 	
 	public abstract void process(
-			String namedEntityType,
-			String notableTypeId,
-			String mid,
+			// The type of the named entities to tag in the sentence
+			String namedEntityType, 
+			// The notable type id of the main entities to tag
+			String notableTypeId, 	
+			// The topic (aka entity) mid
+			String mid, 	
+			// The entity class instance
 			EntityI entity, 
-			String paragraph,
+			/* The alternative name used in the entity' wiki-page to refer to the entity 
+              (e.g. Green in place of Al Green, Lennon in place of John Lennon) */
+			String alias,   
+			// List of entity's acronyms (useful for Organizations)
+			List<String> acronyms,
+			// The entity' wiki-page
+			String paragraph, 
+			// The current sentence
 			Triple<String, Integer, Integer> sent,
+			/* The list of named entities found in the sentence
+			 * (e.g. PERSON, LOCATION, ORGANIZATION) namesv*/			
 			List<Quadruple<String, String, Integer, Integer>> nes
 	);
 	

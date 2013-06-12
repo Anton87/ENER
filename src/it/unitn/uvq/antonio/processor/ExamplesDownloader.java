@@ -6,6 +6,7 @@ import it.unitn.uvq.antonio.freebase.db.FreebaseDB;
 import it.unitn.uvq.antonio.freebase.topic.api.TopicAPIException;
 import it.unitn.uvq.antonio.nlp.ner.NER;
 import it.unitn.uvq.antonio.nlp.sent.SentSplitter;
+import it.unitn.uvq.antonio.nlp.tokenizer.Tokenizer;
 import it.unitn.uvq.antonio.processor.AliasFinder.AliasInfo;
 import it.unitn.uvq.antonio.util.tuple.Quadruple;
 import it.unitn.uvq.antonio.util.tuple.SimpleTriple;
@@ -17,6 +18,7 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.StringTokenizer;
@@ -59,6 +61,8 @@ public class ExamplesDownloader {
 		
 	}
 	
+	
+	
 	private void process(String mid) { 
 		assert mid != null;
 		
@@ -72,21 +76,23 @@ public class ExamplesDownloader {
 			
 			System.out.println("(EE): P: " + paragraph);
 			
-			//if (builder.namedEntityType.equals("PERSON")) {
-				AliasInfo info = new AliasFinder()
-					.setName(entity.getName())
-					.setText(paragraph)
-					.compute();
-				String alias = info.getTopCandidate();
-				//System.out.format("(EE): alias(\"%s\"): \"%s\"%n", entity.getName(), alias);
-				if (!entity.getAliases().contains(alias)) {
-					entity.getAliases().add(alias);
-				}					
-			//}
-			
+			String alias = findAlias(entity.getName(), paragraph);
+			//System.out.format("(EE): alias(\"%s\"): \"%s\"%n", entity.getName(), alias);
+						
 			List<Triple<String, Integer, Integer>> sents = ssplit(paragraph);
 			
-			for (Triple<String, Integer, Integer> sent : sents) { 
+			String firstSent = sents.get(0).first();
+			
+			List<String> acronyms = findAcronyms(firstSent);
+			
+			if (!acronyms.isEmpty()) { 
+				System.out.println("(EE): Acronyms: " + acronyms);
+			}
+			
+			entity.getAliases().addAll(acronyms);
+			
+			for (int sentNum = 0; sentNum < sents.size(); sentNum++) {
+				Triple<String, Integer, Integer> sent = sents.get(sentNum);
 				
 				
 				String newSent= stripBrackets(sent.first())
@@ -95,30 +101,96 @@ public class ExamplesDownloader {
 						.replaceAll("([!\"#$%&')*+,-/:;?@\\[\\]^_`{|}~])+", "$1")
 						.replaceAll("\\s+", " ");						
 				
-				Triple<String, Integer, Integer> normalizedSent = new SimpleTriple<>(newSent, sent.second(), sent.third()); 
+				Triple<String, Integer, Integer> normalizedSent = new SimpleTriple<>(newSent, sent.second(), sent.third());
+				
+				String sentStr = normalizedSent.first(); 
 								
 				List<Quadruple<String, String, Integer, Integer>> nes = classify(normalizedSent.first());
 				
-				boolean valid = contains(normalizedSent.first(), entity);
-				System.out.println("(EE): s (" + (valid ? "o" : "x") + "): " + normalizedSent.first());
+				// Checks if the sentence contains the entity name, a alias, the wiki referring name or an acronym.
+				boolean valid = sentStr.contains(alias) ||
+								sentStr.contains(entity.getName()) ||
+								containsAny(sentStr, acronyms) ||
+								containsAny(sentStr, entity.getAliases()); 
 				
-				if (contains(normalizedSent.first(), entity)) {				
+				System.out.println("(EE): #s(" + sentNum + "): " + (valid ? "o" : "x") + ": " + sentStr);
+				
+				if (valid) {
 					try {
-						builder.process(mid, entity, paragraph, normalizedSent, nes);
+						System.out.println("processing sent...");
+						builder.process(mid, entity, alias, acronyms, paragraph, normalizedSent, nes);
 					} catch (OutOfMemoryError e) {
 						System.out.print("*");
-					} 
+					}
 				}			
 			}	
 		}	
 	}
 	
-	private boolean contains(String sent, EntityI entity) {   
-		assert entity != null;
+	/*
+	 * Search for alternative names used in wikipage page to refer to
+	 * the main subject.
+	 * 
+	 * @param entityName A string holdin the entity name
+	 * @param entityText A string holding the wiki page text
+	 * @return A string holding the name used to refer to the within the article
+	 */
+	private String findAlias(String entityName, String text) {
+		//if (builder.namedEntityType.equals("PERSON")) {
+		AliasInfo info = new AliasFinder()
+			.setName(entityName)
+			.setText(text)
+			.compute();
+		String alias = info.getTopCandidate();
+		//System.out.format("(EE): alias(\"%s\"): \"%s\"%n", entityName, alias);
+		return alias;
+	}
+	
+	/**
+	 * Search for acronyms in the first sentence of a wikipedia page.
+	 * 
+	 * @param sent A string holding a sentence
+	 * @return A new list of the acronyms found
+	 */
+	private List<String> findAcronyms(String sent) {
 		assert sent != null;
 		
-		return sent.contains(entity.getName()) ||
-			   contains(sent, entity.getAliases());		
+		List<String> acronyms = new ArrayList<>();
+		List<String> tokens = new ArrayList<>();
+		for (Triple<String, Integer, Integer> tokenPos : Tokenizer.getInstance().tokenize(sent)) {
+			tokens.add(tokenPos.first());
+		}		
+		
+		Iterator<String> it = tokens.iterator();
+		while (it.hasNext() && !it.next().equals("("));
+		while (it.hasNext()) {
+			String token = it.next();
+			if (token.equals(")")) break;
+			if (isAllUpperCase(token)) { acronyms.add(token); }			
+		}
+		return acronyms;
+	}
+	
+	private boolean isAllUpperCase(String str) { 
+		assert str != null;
+		
+		int i = 0;
+		for (;
+			 i < str.length() && Character.isUpperCase(str.charAt(i));
+			 i++);	
+		return i == str.length();		
+	}
+	
+	
+	
+	private boolean containsAny(String sent, List<String> strs) {   
+		assert sent != null;
+		assert strs != null;
+		
+		for (String str : strs) {
+			if (sent.contains(str)) { return true; }
+		}
+		return false;
 	}
 	
 	private boolean contains(String sent, List<String> strs) {
@@ -236,20 +308,20 @@ public class ExamplesDownloader {
 		 	//"/tv/tv_network",
 		 	//"/sports/sports_team",
 		 	//"/business/business_operation",
-		    "/business/industry",
-		 	//"/government/political_party",
-			"/military/armed_force",
+		    //"/business/industry",
+		 	"/government/political_party",
+			//"/military/armed_force",
 			//"/aviation/airline",
-			"/education/school",
+			//"/education/school",
 			//"/government/government_agency",
 			//"/automotive/company",
 			//"/base/charities/charity",
 			//"/organization/non_profit_organization",
-			"/music/record_label",
-			"/sports/sports_league",
-			"/religion/religious_organization",
-			"/music/musical_group",
-			"/medicine/hospital"
+			//"/music/record_label",
+			//"/sports/sports_league",
+			//"/religion/religious_organization",
+			//"/music/musical_group",
+			//"/medicine/hospital"
 		};
 
 		for (String entityTypeId : notableTypeIDs) {
