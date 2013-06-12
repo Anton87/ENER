@@ -31,8 +31,8 @@ public abstract class ExamplesBuilder {
 			List<Quadruple<String, String, Integer, Integer>> nes
 	);
 	
-	private final String namedEntityType;
+	final String namedEntityType;
 	
-	private final String notableTypeId;
+	final String notableTypeId;
 
 }

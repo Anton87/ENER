@@ -99,7 +99,7 @@ public class AliasFinder {
 		test("Tarra White");
 	}
 	
-	private static class AliasInfo {
+	static class AliasInfo {
 		
 		private AliasInfo(String topCandidate, double score) {
 			assert topCandidate != null;

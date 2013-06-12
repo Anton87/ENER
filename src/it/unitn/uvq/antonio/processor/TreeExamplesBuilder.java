@@ -117,8 +117,8 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		Tree tree = parse(sent.first());
 		
 		if (!isWellFormedTree(tree)) {
-			System.out.println("X");
-			System.out.println("(EE): X-Tree: " + tree);
+			System.out.print("X");
+			//System.out.println("(EE): X-Tree: " + tree);
 			return; 
 		}
 		
@@ -155,7 +155,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 			List<TextAnnotationI> sndAnnotations = map(sndEntities, toAnnotation);
 			
 			if (isAtLeastOneAnnotable(tree, priAnnotations)) {
-				String bow = buildBOW(paragraph);
+				String bow = buildBOW(sent.first());
 				
 				Tree aTree = annotate(tree, priAnnotations, sndAnnotations);
 				
@@ -169,41 +169,8 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 				examplesNum += 1;
 				
 				System.out.print(".");				
-			}
-			
+			}			
 		}
-		
-		
-		/*
-		
-		if (!priEntities.isEmpty()) {
-			
-			List<TextAnnotationI> priAnnotations = map(priEntities, toAnnotation);
-			List<TextAnnotationI> sndAnnotations = map(sndEntities, toAnnotation);
-			
-			Tree tree = parse(sent.first());
-			
-			List<Tree> terminalGParents = getTerminalGranParents(tree);
-			
-			if(isAtLeastOneAnnotable(tree, priAnnotations)) {
-				String bow = buildBOW(sent.first());
-				@SuppressWarnings("unchecked")
-				Tree aTree = annotate(tree, priAnnotations, sndAnnotations);
-				
-				String example = buildSVMExample(bow, aTree.toString());
-				//String fileId = String.format("%04d", examplesNum);
-				map.get("dat").println(example);
-				
-				String priEntityTypes = join(SEPARATOR, getEntityTypes(entity));
-				map.get("tsv").println(priEntityTypes);
-				
-				map.get("txt").println(sent.first());
-				examplesNum += 1;
-				
-				System.out.print(".");
-			}
-		}
-		*/
 		
 		if (examplesNum >= maxExamples) {
 			ExamplesDownloader.running = false;
@@ -228,9 +195,9 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		Set<String> names = new HashSet<>(entity.getAliases());
 		names.add(entity.getName());
 		
-		System.out.println("(EE): names(entity): " + names);
-		System.out.println("(EE): sent: " + sent);
-		System.out.println("(EE): tree: " + tree);
+		//System.out.println("(EE): names(entity): " + names);
+		//System.out.println("(EE): sent: " + sent);
+		//System.out.println("(EE): tree: " + tree);
 		
 		Set<Quintuple<String, String, String, Integer, Integer>> mentions = new HashSet<>();
 		
@@ -245,7 +212,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 				 */
 				if (nameSpan == null) continue;
 				
-				System.out.println("(EE): span(\"" + name + "\"): " + nameSpan);
+				//System.out.println("(EE): span(\"" + name + "\"): " + nameSpan);
 				
 				TextAnnotation a = new TextAnnotation("NE", nameSpan.start(), nameSpan.end());
 				TreeBuilder tb = new TreeBuilder(tree);
@@ -284,6 +251,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		return null;
 	}
 
+	/*
 	private Set<Quintuple<String, String, String, Integer, Integer>> getMentions(EntityI entity, Set<Tree> terminalsGParents, List<Triple<String, Integer, Integer>> tokens, String sent) {
 		assert entity != null;
 		assert terminalsGParents != null;
@@ -292,16 +260,16 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		Set<String> names = new HashSet<>(entity.getAliases());
 		names.add(entity.getName());
 		
-		System.out.println("(EE): names(entity): " + names);
+		//System.out.println("(EE): names(entity): " + names);
 		
-		System.out.println("(EE): sent: " + sent);
+		//System.out.println("(EE): sent: " + sent);
 		
 		Set<Quintuple<String, String, String, Integer, Integer>> mentions = new HashSet<>();
 		
 		for (Tree gParent : terminalsGParents) {
 			IntRange span = gParent.getSpan();
 			String text = sent.substring(span.start(), span.end());
-			System.out.println("(EE): constituency: " + text);
+			//System.out.println("(EE): constituency: " + text);
 			//if (names.contains(text)) {
 			List<String> namesInText = getNamesInText(text, names);
 			System.out.println("(EE): names found: " + namesInText);
@@ -313,9 +281,6 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 				// Get the span of the portion of subtree containing the name
 				IntRange nameSpan = getTreeSubspan(maxLenName, sent, gParent);
 				
-				/* This may happend when an entity name or alias differs by the name in the sent
-				 * for some letter.
-				 */
 				if (nameSpan != null) {
 					Quintuple<String, String, String, Integer, Integer> mention = 
 						new SimpleQuintuple<>(text, "ORGANIZATION", "NE", nameSpan.start(), nameSpan.end());
@@ -326,6 +291,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		}
 		return mentions;
 	}
+	*/
 	
 	private IntRange getTreeSubspan(String pattern, String text, Tree tree) {
 		assert pattern != null;
@@ -335,9 +301,12 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		int start;
 		int end;
 		
-		IntRange span = null;
 		List<Tree> leaves = tree.getLeaves();
 		for (int i = 0; i < leaves.size(); i++) {
+			
+			// <!-- Inserted code to speed substring computation
+			if (!pattern.startsWith(leaves.get(i).getText())) continue;					
+			// -->
 			start = i;
 			for (int j = i + 1; j <= leaves.size(); j++) {
 				end = j;

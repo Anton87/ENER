@@ -6,6 +6,7 @@ import it.unitn.uvq.antonio.freebase.db.FreebaseDB;
 import it.unitn.uvq.antonio.freebase.topic.api.TopicAPIException;
 import it.unitn.uvq.antonio.nlp.ner.NER;
 import it.unitn.uvq.antonio.nlp.sent.SentSplitter;
+import it.unitn.uvq.antonio.processor.AliasFinder.AliasInfo;
 import it.unitn.uvq.antonio.util.tuple.Quadruple;
 import it.unitn.uvq.antonio.util.tuple.SimpleTriple;
 import it.unitn.uvq.antonio.util.tuple.Triple;
@@ -61,15 +62,32 @@ public class ExamplesDownloader {
 	private void process(String mid) { 
 		assert mid != null;
 		
-		EntityI entity = freebaseDB.getEntityById(mid);		
+		EntityI entity = freebaseDB.getEntityById(mid);	
+		
+		System.out.println("(EE): e: " + entity.getName() + ", " + entity.getAliases());
 		
 		String paragraph = getWikiAbstractByMid(mid);
 		
-		if (paragraph != null && !paragraph.isEmpty()) { 			
+		if (paragraph != null && !paragraph.isEmpty()) { 
+			
+			System.out.println("(EE): P: " + paragraph);
+			
+			//if (builder.namedEntityType.equals("PERSON")) {
+				AliasInfo info = new AliasFinder()
+					.setName(entity.getName())
+					.setText(paragraph)
+					.compute();
+				String alias = info.getTopCandidate();
+				//System.out.format("(EE): alias(\"%s\"): \"%s\"%n", entity.getName(), alias);
+				if (!entity.getAliases().contains(alias)) {
+					entity.getAliases().add(alias);
+				}					
+			//}
 			
 			List<Triple<String, Integer, Integer>> sents = ssplit(paragraph);
 			
 			for (Triple<String, Integer, Integer> sent : sents) { 
+				
 				
 				String newSent= stripBrackets(sent.first())
 						.replaceAll("\\s+", " ")
@@ -80,6 +98,9 @@ public class ExamplesDownloader {
 				Triple<String, Integer, Integer> normalizedSent = new SimpleTriple<>(newSent, sent.second(), sent.third()); 
 								
 				List<Quadruple<String, String, Integer, Integer>> nes = classify(normalizedSent.first());
+				
+				boolean valid = contains(normalizedSent.first(), entity);
+				System.out.println("(EE): s (" + (valid ? "o" : "x") + "): " + normalizedSent.first());
 				
 				if (contains(normalizedSent.first(), entity)) {				
 					try {
@@ -203,29 +224,32 @@ public class ExamplesDownloader {
 		 *	"/visual_art/visual_artist"
 		 *	};
 		 */
+		
+		String[] personTypeIDs = new String[] {
+			"/music/artist"
+		};
 
 		/* 
 		 * Organization notable-types
 		 */
-		String[] notableTypeIDs = new String[] {
-			//"/tv/tv_network",
-			//"sports/sports_team",
-			//"/business/business_operation",
-			//"/business/industry",
-			//"/government/political_party",
-			//"/military/armed_force",
+		 String[] notableTypeIDs = new String[] {
+		 	//"/tv/tv_network",
+		 	//"/sports/sports_team",
+		 	//"/business/business_operation",
+		    "/business/industry",
+		 	//"/government/political_party",
+			"/military/armed_force",
 			//"/aviation/airline",
-			//"/education/school",
+			"/education/school",
 			//"/government/government_agency",
 			//"/automotive/company",
-			"/military/armed_force"
 			//"/base/charities/charity",
 			//"/organization/non_profit_organization",
-			//"/music/record_label",
-			//"/sports/sports_league",
-			//"/religion/religious_organization",
-			//"/music/musical_group",
-			//"/medicine/hospital"
+			"/music/record_label",
+			"/sports/sports_league",
+			"/religion/religious_organization",
+			"/music/musical_group",
+			"/medicine/hospital"
 		};
 
 		for (String entityTypeId : notableTypeIDs) {
