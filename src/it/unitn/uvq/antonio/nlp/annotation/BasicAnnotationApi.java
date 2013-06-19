@@ -15,8 +15,9 @@ public class BasicAnnotationApi implements AnnotationApi {
 		if (tree == null) throw new NullPointerException("tree: null");
 		
 		TreeBuilder subTree = findBestMatchingSubTree(a, tree);
+		//System.out.println("it.unitn.uvq.antonio.nlp.annotation.BasicAnnotationsApi isAnnotable(): subTree: " + subTree);
 		if (subTree == null) { return false; }
-		// System.out.println("it.unitn.uvq.antonio.nlp.annotation.BasicAnnotationApi isAnnotable() - > " + subTree.toString());
+		//System.out.println("it.unitn.uvq.antonio.nlp.annotation.BasicAnnotationApi isAnnotable() - > " + subTree.toString());
 		return subTreeMatch(a, subTree) ||
 			   subTreeChildrenMatchAnnotation(a, subTree);
 	}
@@ -41,8 +42,17 @@ public class BasicAnnotationApi implements AnnotationApi {
 		for (TreeBuilder subTree : tree.getNodes()) { 
 			if (!subTree.isLeaf()) { 
 				if (subTree.getSpan().contains(a.span())  &&
-				   (bestMatch == null || subTree.getSpan().compareTo(bestMatch.getSpan()) <= 0)) {
-				  	bestMatch = subTree;					
+				   // Tag the innermost node. (old)
+				   //(bestMatch == null || subTree.getSpan().compareTo(bestMatch.getSpan()) < 0)) { 
+				   
+				   // Tag the innermost node.
+				   //(bestMatch == null || subTree.getSpan().compareTo(bestMatch.getSpan()) <= 0)) {
+										
+				   // <!-- old -->
+				   // Tag the outermost node.
+				   (bestMatch == null || 
+				    subTree.getSpan().compareTo(bestMatch.getSpan()) <= 0) && !subTree.getSpan().equals(a.span())) {
+				  	bestMatch = subTree;			
 				}
 			}
 		}
@@ -107,11 +117,13 @@ public class BasicAnnotationApi implements AnnotationApi {
 		List<TreeBuilder> subTreeChildren = getOverlappingChildren(a, subTree);
 		// System.out.println("it.unitn.uvq.antonio.nlp.annotation.BasicAnnotationApi subTreeChildrenMatchAnnotation() -> subTreeChildren.isEmpty()? " + subTreeChildren.isEmpty() + ".");
 		// System.out.print("it.unitn.uvq.antonio.nlp.annoation.BasicAnnotationApi getOverlappingChildren() -> ");
+		
 		/*
 		for (TreeBuilder child : subTreeChildren) { 
 			System.out.print("Tree(" + child.getText() + ", " + child.start() + ", " + child.end() + "), ");
 		}
 		*/
+		
 		// System.out.println();
 		// System.out.print("subTreeChildren: ");
 		// System.out.println(subTreeChildren);

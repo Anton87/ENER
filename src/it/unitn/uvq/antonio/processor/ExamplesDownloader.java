@@ -56,9 +56,9 @@ public class ExamplesDownloader {
 				mids = retrieveMidsByNotableTypeId(notableTypeId, offset, examplesPerTime);
 				offset += mids.size();
 			}
-			if (mids.isEmpty()) { System.out.println("(EE): Scanned " + offset + " examples."); }
+			// if (mids.isEmpty()) { System.out.println("(EE): Scanned " + offset + " examples."); }
 		}
-		
+		builder.close();		
 	}
 	
 	
@@ -77,7 +77,7 @@ public class ExamplesDownloader {
 			System.out.println("(EE): P: " + paragraph);
 			
 			String alias = findAlias(entity.getName(), paragraph);
-			//System.out.format("(EE): alias(\"%s\"): \"%s\"%n", entity.getName(), alias);
+			System.out.format("(EE): alias(\"%s\"): \"%s\"%n", entity.getName(), alias);
 						
 			List<Triple<String, Integer, Integer>> sents = ssplit(paragraph);
 			
@@ -105,7 +105,7 @@ public class ExamplesDownloader {
 				
 				String sentStr = normalizedSent.first(); 
 								
-				List<Quadruple<String, String, Integer, Integer>> nes = classify(normalizedSent.first());
+				// List<Quadruple<String, String, Integer, Integer>> nes = classify(normalizedSent.first());
 				
 				// Checks if the sentence contains the entity name, a alias, the wiki referring name or an acronym.
 				boolean valid = sentStr.contains(alias) ||
@@ -117,8 +117,7 @@ public class ExamplesDownloader {
 				
 				if (valid) {
 					try {
-						System.out.println("processing sent...");
-						builder.process(mid, entity, alias, acronyms, paragraph, normalizedSent, nes);
+						builder.process(mid, entity, alias, acronyms, paragraph, normalizedSent);
 					} catch (OutOfMemoryError e) {
 						System.out.print("*");
 					}
@@ -276,44 +275,79 @@ public class ExamplesDownloader {
 	
 	public static void main(String[] args) {
 		// String entityTypeId = "/education/academic";
-		String priEntityType = "ORGANIZATION";
+		String priEntityType = "Misc";
 		int examplesNum = 1000;
-		//String destFile = "/home/antonio/Scrivania/sshdir_loc/shallow/data";		
+		//String destFile = "/home/antonio/Scrivania/sshdir_loc/shallow/data";
+		
+		/*
+		String[] notableTypeIDs = new String[] { 
+			"/chess/chess_player"
+		};
+		*/
+		
+		String[] notableTypeIDs = new String[] {
+			"/automotive/make" +
+			"/automotive/model",
+			"/business/business_operation",
+			"/computer/software",
+			"/en/economist",
+			"/internet/website",
+			"/music/album",
+			"/music/artist",
+			//"/music/release",
+			"/music/musical_group",
+			//"/music/release_track",
+			"/film/actor",
+			"/spaceflight/satellite",
+			"/food/ingredient",
+			"/book/book",
+			"/tv/tv_series_episode"
+			
+		};
 		
 		/*
 		 * Person notable-types.
 		 *
-		 *	String[] notableTypeIDs = new String[] {
-		 *	"/architecture/architect",
-		 *	"/education/academic",
-		 *	"/en/model",
-		 *	"/en/physician",
-		 *	"/en/writer",
-		 *	"/film/actor",
-		 *	"/government/politician",
-		 *	"/music/artist",
-		 *	"/sports/pro_athlete",			
-		 *	"/visual_art/visual_artist"
-		 *	};
+		 String[] notableTypeIDs = new String[] {
+			"/architecture/architect",		    
+		    "/chess/chess_player",
+		  	"/education/academic",
+		    "/en/astronomer",
+		    "/en/aviator",
+		    "/en/businessperson",
+		    "/en/chef",
+		    "/en/chemist",
+		    "/en/computer_scientist",
+		    "/en/economist",
+		    "/en/engineer",
+		    "/en/entrepreneur",
+		    "/en/lawyer",
+		    "/en/model",
+		  	"/en/physician",
+		  	"/en/pianist",
+		  	"/en/writer",
+		  	"/film/actor",
+		  	"/government/politician",
+		  	"/music/artist",
+		  	"/sports/pro_athlete",			
+		  	"/visual_art/visual_artist"
+		 };
 		 */
-		
-		String[] personTypeIDs = new String[] {
-			"/music/artist"
-		};
+		 
 
 		/* 
 		 * Organization notable-types
-		 */
+		 *
 		 String[] notableTypeIDs = new String[] {
 		 	//"/tv/tv_network",
 		 	//"/sports/sports_team",
 		 	//"/business/business_operation",
 		    //"/business/industry",
-		 	"/government/political_party",
+		 	//"/government/political_party",
 			//"/military/armed_force",
 			//"/aviation/airline",
 			//"/education/school",
-			//"/government/government_agency",
+			"/government/government_agency",
 			//"/automotive/company",
 			//"/base/charities/charity",
 			//"/organization/non_profit_organization",
@@ -323,14 +357,17 @@ public class ExamplesDownloader {
 			//"/music/musical_group",
 			//"/medicine/hospital"
 		};
+		*/
 
 		for (String entityTypeId : notableTypeIDs) {
-			String destFile = "/home/antonio/Scrivania/sshdir_loc/tree/ORG/data/" + encode(entityTypeId);
+			String destFile = "/home/antonio/Scrivania/sshdir_loc/tree/MISC/data/" + encode(entityTypeId);
 			if (!new File(destFile).isDirectory()) new File(destFile).mkdirs(); 
 			ExamplesBuilder builder  = new TreeExamplesBuilder(priEntityType, entityTypeId, examplesNum, destFile);
 			ExamplesDownloader downloader = new ExamplesDownloader(entityTypeId, examplesNum, builder);
 			downloader.run();
 		}
 	}
+	
+	
 
 }

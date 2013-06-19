@@ -1,80 +1,112 @@
 package it.unitn.uvq.antonio.processor;
 
 import it.unitn.uvq.antonio.file.FileUtils;
-import it.unitn.uvq.antonio.freebase.db.EntityI;
 import it.unitn.uvq.antonio.nlp.tokenizer.Tokenizer;
+import it.unitn.uvq.antonio.util.tuple.Pair;
+import it.unitn.uvq.antonio.util.tuple.SimplePair;
 import it.unitn.uvq.antonio.util.tuple.Triple;
 
 import java.net.URLEncoder;
+import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.StringTokenizer;
+import java.util.Map.Entry;
 
-import com.google.common.base.Joiner;
-
+/**
+ * Find the name used in the wiki-abstract to refer to the entity.
+ * Usually a subpart of the entity naem is used in a wiki article in order to refer 
+ *  to the main entity.
+ * e.g.:
+ *  · John Winston Ono Lennon appears as "Lennon";
+ *  · Britney Jean Spears appears as "Britney";
+ *  · Albert Green appears as "Green";
+ *  · ...
+ *  
+ *  This class does not take in consideration acronyms (not yet :)).
+ *  
+ * 
+ * @author antonio Antonio Uva 145683
+ *
+ */
 public class AliasFinder {
 	
 	public AliasInfo compute() {
 		assert name != null;
 		assert text != null;
 		
-		List<String> nameParts = Arrays.asList(name.split("\\s+"));
-		//System.out.println("tokens(\"" + name + "\"): " + nameParts);
-		
-		List<Triple<String, Integer, Integer>> tokens = Tokenizer.getInstance().tokenize(text);
+		List<Triple<String, Integer, Integer>> tokensPos = Tokenizer.getInstance().tokenize(text);
 		
 		Map<String, Integer> m = new HashMap<>();
 		
-		
-		int tokNum = 0;
+		List<String> tokens = new ArrayList<>();
 		List<String> buffer = new ArrayList<>();
-		for (Triple<String, Integer, Integer> token : tokens) {
-			String tok = token.first();
-			if (nameParts.contains(tok)) {
-				buffer.add(tok);
-				//System.out.println("Occurrence of " + tok + " found at pos: " + tokNum + ".");
-			} else {
-				if (!buffer.isEmpty()) {
-					String str = Joiner.on(" ").join(buffer);
+		
+		/* Get the list of tokens and their positions. */
+		for (Triple<String, Integer, Integer> tokenPos : tokensPos) {
+			tokens.add(tokenPos.first());
+		}
+		
+		int start = 0;
+		for (int i = 0; i < tokens.size(); i++) {
+			String currToken = tokens.get(i);
+			
+			int j = i;
+			
+			// System.out.format("isUpperCase(%s)? %s%n", currToken, isUpperCase(currToken));
+			
+			/* Checks if current token matches the name's begin or 
+			 * it matches the name's end. */
+			if (buffer.isEmpty() && 
+			   (name.startsWith(currToken) || name.endsWith(currToken))) {
+				// System.out.println("start collecting back name tokens...");
+				for (;
+					 j >= 0 && isUpperCase(tokens.get(j));
+					 j--) {
+					// System.out.format("(1) token: %s <%s, %s>%n", tokens.get(j), tokenPos.second(), tokenPos.third(), tokensPos);
+					buffer.add(0, tokens.get(j));
+					start = tokensPos.get(j).second();
+				}
+			} else if (!buffer.isEmpty()) {
+				if (isUpperCase(currToken)) { 
+					buffer.add(currToken);
 					
- 					if (name.startsWith(str) || name.endsWith(str)) {
-						int count = m.containsKey(str) ? m.get(str) : 0;   
-						m.put(str, count + 1);
-					}					
+					// System.out.format("(2) token: %s <%s, %s>%n", currToken, tokenPos.second(), tokenPos.third());
+				} else {
+					int end = tokensPos.get(i - 1).third();
+					// System.out.format("end: \"%s\" <%s>%n", currToken, tokensPos.get(i - 1).third());
+					String alias = text.substring(start, end);
+				
+					// System.out.println("(3) buffer: " + buffer + ", name: \"" + name + "\", start: " + start + ", end: " + end);
+				
+					int count = m.containsKey(alias) ? m.get(alias) : 0;
+					m.put(alias, count + 1);
 					buffer.clear();
 				}
 			}
-			tokNum++;
 		}
 		
+		// System.out.println(m.keySet());
 		
-		Set<String> keys = m.keySet();
-		for (String alias : keys) {
-			for (String otherAlias : keys) {
-				if (!alias.equals(otherAlias) && otherAlias.contains(alias)) {
-					m.put(alias, m.get(alias) + 1);
-				}
-			}
-		}
 		
-		String maxFreqAlias = name;
-		int max = 0;
-		for (String alias : m.keySet()) {
-			int freq = m.get(alias);
-			//System.out.println("alias: \"" + alias + "\", freq(alias): " + freq);
-			if (freq > max) {
-				maxFreqAlias = alias;
-				max = freq;
-			}					
-		}
-		int counts = 0;
-		for (Integer freq : m.values()) { counts += freq; }
+		// list of <name, count> pairs sorted by value in asc order
+		List<Entry<String, Integer>> entries = sort(new ArrayList<>(m.entrySet()));
+		System.out.println(entries);
 		
-		return new AliasInfo(maxFreqAlias, (double) max / counts);
+		return new AliasInfo(m, entries);
+		
+		//return new AliasInfo(topEntry.getKey(), scoreAsFraction, score);
+	}
+	
+	private List<Entry<String, Integer>> sort(List<Entry<String, Integer>> entries) { 
+		assert entries != null;
+		
+		List<Entry<String, Integer>> sorted = new ArrayList<>(entries);
+		Collections.sort(sorted, sortEntryByAscValue);
+		return sorted;
 	}
 	
 	public AliasFinder setName(String name) {
@@ -91,56 +123,68 @@ public class AliasFinder {
 		return this;
 	}
 	
+	private boolean isUpperCase(String str) { 
+		assert str != null;
+		
+		return Character.isUpperCase(str.charAt(0));
+	}
+	
 	public static void main(String[] args) { 
 		test("John Lennon");
 		test("Yoko Ono");
 		test("Al Green");
 		test("Britney Spears");
-		test("Tarra White");
+		test("Silvio Berlusconi");
+		test("Lana Del Rey");
 	}
 	
 	static class AliasInfo {
 		
-		private AliasInfo(String topCandidate, double score) {
-			assert topCandidate != null;
-			assert score >= .0 && score < 1;
+		private AliasInfo(Map<String, Integer> candidatesMap, List<Entry<String, Integer>> sortedCandidates) {
+			assert candidatesMap != null;
+			assert sortedCandidates != null;
 			
-			this.topCandidate = topCandidate;
-			this.score = score;
+			int totCount = 0;
+			for (Entry<String, Integer> candidate : sortedCandidates) {
+				totCount += candidate.getValue();
+			}
+			this.totCount = totCount;
+			this.candidates = sortedCandidates;
+			this.candidatesMap = candidatesMap;
 		}
 		
-		public String getTopCandidate() {
-			return topCandidate;			
+		public String getTopCandidate() { 
+			return candidates.get(0).getKey();
 		}
 		
-		public double getScore() {
-			return score;
-		}		
+		public List<String> getCandidates() {
+			List<String> names = new ArrayList<>();			
+			for (Entry<String, Integer> candidate : candidates) {  names.add(candidate.getKey()); }
+			return names;
+		}
 		
-		private final String topCandidate;
-		
-		private final double score;
-		
-		
-		
-	}
+		public double getScore(String name) {
+			Pair<Integer, Integer> frac = getScoreAsFraction(name);
+			
+			return (double) frac.first() / frac.second();
+		}
 	
-	/*
-	private static void testLanaDelRey() {
-		String name = "Lana Del Rey";
+		public Pair<Integer, Integer> getScoreAsFraction(String name) { 
+			assert name != null;
+			
+			return new SimplePair<Integer, Integer>(candidatesMap.get(name), totCount);
+		}
 		
-		String text = "Elizabeth Woolridge Grant (born June 21, 1986), better known by her stage name Lana Del Rey, is an American singer-songwriter. Del Rey started performing in clubs in New York City at the age of 18 and she signed her first recording contract when she was 20 years old with 5 Points Records, releasing her first digital album Lana Del Ray a.k.a. Lizzy Grant in January 2010. Del Rey bought herself out of the contract with 5 Points Records in April 2010. She signed a joint contract with Interscope, Polydor, and Stranger Records in October 2011.";
+		private final int totCount;
 		
-		AliasDetector detector = new AliasDetector();
+		private final List<Entry<String, Integer>> candidates;
 		
-		String alias = detector.getAlias(name, text);
-		
-		System.out.println("alias: " + alias);
+		private final Map<String, Integer> candidatesMap;
 		
 	}
-	*/
 	
 	private static void test(String name) { 
+		@SuppressWarnings("deprecation")
 		String path = "/home/antonio/workspace/abstracts/" + name.charAt(0) + "/" + URLEncoder.encode(name.replaceAll(" ", "_"));
 		String text = FileUtils.readText(path);
 		
@@ -149,47 +193,25 @@ public class AliasFinder {
 		finder.setText(text);
 		
 		AliasInfo info = finder.compute();
-		System.out.format("name: \"%s\", alias: \"%s\", score: %.2f%n", name, info.getTopCandidate(), info.getScore());		
+		String alias = info.getTopCandidate();
+		double score = info.getScore(alias);
+		Pair<Integer, Integer> scoreAsFrac = info.getScoreAsFraction(alias);
+		System.out.format("name: \"%s\", alias: \"%s\", score: %.2f (%s/%s)%n", name, info.getTopCandidate(), score, scoreAsFrac.first(), scoreAsFrac.second());		
  	}
 	
-	private static void testLeonardoDaVinci() {
-		String name = "Leonardo da Vinci";
+	/* Sort <String, Integer> entries by ascending order. */
+	private static Comparator<Entry<String, Integer>> sortEntryByAscValue = new Comparator<Entry<String, Integer>>() {
 		
-		String text = "";
-		text += "Leonardo di ser Piero da Vinci (Italian pronunciation: [leoˈnardo da ˈvintʃi] About this sound pronunciation (help·info)) (April 15, 1452 – May 2, 1519, Old Style) was an Italian Renaissance polymath: painter, sculptor, architect, musician, mathematician, engineer, inventor, anatomist, geologist, cartographer, botanist, and writer. His genius, perhaps more than that of any other figure, epitomized the Renaissance humanist ideal. Leonardo has often been described as the archetype of the Renaissance Man, a man of \"unquenchable curiosity\" and \"feverishly inventive imagination\".[1] He is widely considered to be one of the greatest painters of all time and perhaps the most diversely talented person ever to have lived.[2] According to art historian Helen Gardner, the scope and depth of his interests were without precedent and \"his mind and personality seem to us superhuman, the man himself mysterious and remote\".[1] Marco Rosci states that while there is much speculation about Leonardo, his vision of the world is essentially logical rather than mysterious, and that the empirical methods he employed were unusual for his time.";
-		text += "Born out of wedlock to a notary, Piero da Vinci, and a peasant woman, Caterina, at Vinci in the region of Florence, Leonardo was educated in the studio of the renowned Florentine painter, Verrocchio. Much of his earlier working life was spent in the service of Ludovico il Moro in Milan. He later worked in Rome, Bologna and Venice, and he spent his last years in France at the home awarded him by Francis I.";
-		text += "Leonardo was, and is, renowned[2] primarily as a painter. Among his works, the Mona Lisa is the most famous and most parodied portrait[4] and The Last Supper the most reproduced religious painting of all time, with their fame approached only by Michelangelo's The Creation of Adam.[1] Leonardo's drawing of the Vitruvian Man is also regarded as a cultural icon,[5] being reproduced on items as varied as the euro, textbooks, and T-shirts. Perhaps fifteen of his paintings survive, the small number because of his constant, and frequently disastrous, experimentation with new techniques, and his chronic procrastination.[nb 2] Nevertheless, these few works, together with his notebooks, which contain drawings, scientific diagrams, and his thoughts on the nature of painting, compose a contribution to later generations of artists rivalled only by that of his contemporary, Michelangelo.";
-		text += "Leonardo is revered[2] for his technological ingenuity. He conceptualised a helicopter, a tank, concentrated solar power, a calculator,[6] and the double hull, and he outlined a rudimentary theory of plate tectonics. Relatively few of his designs were constructed or were even feasible during his lifetime,[nb 3] but some of his smaller inventions, such as an automated bobbin winder and a machine for testing the tensile strength of wire, entered the world of manufacturing unheralded.[nb 4] He made important discoveries in anatomy, civil engineering, optics, and hydrodynamics, but he did not publish his findings and they had no direct influence on later science.";
-		
-		AliasFinder finder = new AliasFinder();
-		finder.setName(name);
-		finder.setText(text);
-		
-		AliasInfo info = finder.compute();
-		
-		System.out.format("name: \"%s\", alias: \"%s\", score: %.2f%n", name, info.getTopCandidate(), info.getScore());		
-		
-	}
-	
-	private static void testAlGreen() {
-		String name = "Al Green";
-		
-		String text = "Albert Greene (born April 13, 1946),[1] better known as Al Green or Reverend Al Green, is an American singer, better known for scoring a series of soul hit singles in the early 1970s, including \"Tired of Being Alone\", \"I'm Still In Love With You\", \"Love and Happiness\" and his signature song, \"Let's Stay Together\".[2] Inducted to the Rock and Roll Hall of Fame in 1995, Green was referred to on the museum's site as being \"one of the most gifted purveyors of soul music\".[2] Green was included in the Rolling Stone list of the 100 Greatest Artists of All Time, ranking at No. 66";
-		
-		AliasFinder finder = new AliasFinder();
-		finder.setName(name);
-		finder.setText(text);
-		
-		AliasInfo info = finder.compute();
-		
-		System.out.format("name: \"%s\", alias: \"%s\", score: %.2f%n", name, info.getTopCandidate(), info.getScore());		
-
-		
-		
-	}
+		@Override
+		public int compare(Entry<String, Integer> o1, Entry<String, Integer> o2) {
+			int c = o2.getValue().compareTo(o1.getValue()); 
+			// if two keys have the same count, take the one with the smallest one. 
+			return c == 0 ? o2.getKey().length() - o1.getKey().length() : c;
+		}
+	}; 
 	
 	private String name;
 	
-	private String text;	
+	private String text;	 
 
 }

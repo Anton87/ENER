@@ -2,9 +2,7 @@ package it.unitn.uvq.antonio.processor;
 
 import it.unitn.uvq.antonio.freebase.db.EntityI;
 import it.unitn.uvq.antonio.freebase.db.TypeI;
-import it.unitn.uvq.antonio.nlp.annotation.Annotation;
 import it.unitn.uvq.antonio.nlp.annotation.AnnotationApi;
-import it.unitn.uvq.antonio.nlp.annotation.AnnotationI;
 import it.unitn.uvq.antonio.nlp.annotation.BasicAnnotationApi;
 import it.unitn.uvq.antonio.nlp.annotation.TextAnnotation;
 import it.unitn.uvq.antonio.nlp.annotation.TextAnnotationI;
@@ -25,16 +23,13 @@ import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.net.URLEncoder;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.jar.Attributes.Name;
 
 import svmlighttk.SVMExampleBuilder;
 
@@ -86,18 +81,20 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 	@Override
 	public void process(String priEntityType, String notableTypeId,
 			String mid, EntityI entity, String alias, List<String> acronyms, String paragraph,
-			Triple<String, Integer, Integer> sent,
-			List<Quadruple<String, String, Integer, Integer>> nes) {
+			Triple<String, Integer, Integer> sent) {
+		
+		/* Build  the list of entity names to search for in sentences. */
+		List<String> names = new ArrayList<>();
+		names.add(alias);
+		names.add(entity.getName());
+		names.addAll(entity.getAliases());
+		names.addAll(acronyms);
 				
-		
-		//List<String> priEntityNames = getEntityNames(entity);
-		
 		//NEUtils.ResultSet rs = NEUtils.getInstance().getRankedEntities(nes, priEntityNames, priEntityType);
 	
 		List<Quintuple<String, String, String, Integer, Integer>> priEntities = new ArrayList<>();
 		
 		List<Quintuple<String, String, String, Integer, Integer>> sndEntities = new ArrayList<>();
-		
 		
 		
 		Tree tree = parse(sent.first());
@@ -108,10 +105,12 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 			return; 
 		}
 		
-		// The list of primary entities appearing in the sentence.
-		priEntities = getMentions(entity, tree, sent.first());
+		// List<Quintuple<String, String, String, Integer, Integer>> pes = getMentions(entity, tree, sent.first());
+		List<Quintuple<String, String, String, Integer, Integer>> pes = getMentions(names, tree, sent.first());
 		
-		// The lis of additional entities appearing in the sentence.
+		
+		// The list of additional entities appearing in the sentence.
+		/*
 		List<Quintuple<String, String, String, Integer, Integer>> aes = new ArrayList<>();
 		for (Quadruple<String, String, Integer, Integer> ne : nes) { 
 			Quintuple<String, String, String, Integer, Integer> ae = 
@@ -120,39 +119,30 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		}
 		
 		/* We keep only the additional entities (AE) with the same 
-		 * named entity type of our primary entity. */
+		 * named entity type of our primary entity. 
 		aes = new ArrayList<>(
 				Collections2.filter(aes, NEUtils.hasType(priEntityType)));
 		
+		
+		/* Find overlaps between primary entities and secondary entities.
 		List<Pair<Quintuple<String, String, String, Integer, Integer>,
-			      Quintuple<String, String, String, Integer, Integer>>> overlaps = findOverlaps(priEntities, aes);
+			      Quintuple<String, String, String, Integer, Integer>>> overlaps = findOverlaps(pes, aes);
 		
 		
-		/* Remove the additional entities which overlap primary entities. */
+		/* Remove the additional entities which overlap primary entities. 
 		for (Pair<Quintuple<String, String, String, Integer, Integer>,
 				  Quintuple<String, String, String, Integer, Integer>> overlap : overlaps) {
 			aes.remove(overlap.second());
 		}
-			     
 		
-		/*
-		priEntities.addAll(mentions);
-		for (Quadruple<String, String, Integer, Integer> ne : nes) {
-			if (!ne.second().equals(priEntityType)) { continue; }
-			boolean overlap = false;
-			for (int i = 0; !overlap && i < priEntities.size(); i++) {
-				Quintuple<String, String, String, Integer, Integer> priNe = priEntities.get(i);
-				IntRange neSpan = new IntRange(ne.third(), ne.fourth());
-				IntRange priSpan = new IntRange(priNe.fourth(), priNe.fifth());
-				overlap = neSpan.overlap(priSpan);
-			}
-			if (!overlap) {
-				Quintuple<String, String, String, Integer, Integer> sndNe = 
-						new SimpleQuintuple<String, String, String, Integer, Integer>(ne.first(), ne.second(), "AE", ne.third(), ne.fourth());
-				sndEntities.add(sndNe);
-			}			
-		}
+		// The list of secondary entities appearing in the sentence.
+		sndEntities = aes;
 		*/
+
+		// The list of primary entities appearing in the sentence.
+		priEntities = pes;
+		
+		
 		
 		//System.out.println("(EE): Tree: " + tree);		
 		//System.out.println("(EE): Sent: " + sent.first());
@@ -165,7 +155,9 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 			if (isAtLeastOneAnnotable(tree, priAnnotations)) {
 				String bow = buildBOW(sent.first());
 				
-				Tree aTree = annotate(tree, priAnnotations, sndAnnotations);
+				Tree aTree = tree;
+				aTree = annotate(aTree, priAnnotations);
+				aTree = annotate(aTree, sndAnnotations);				
 				
 				String example = buildSVMExample(bow, aTree.toString());
 				map.get("dat").println(example);
@@ -182,7 +174,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		
 		if (examplesNum >= maxExamples) {
 			ExamplesDownloader.running = false;
-			close();
+			// close();
 		}
 	}
 	
@@ -216,28 +208,13 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 			}			
 		}
 		return overlaps;
-		
-		/*
-		priEntities.addAll(mentions);
-		for (Quadruple<String, String, Integer, Integer> ne : nes) {
-			if (!ne.second().equals(priEntityType)) { continue; }
-			boolean overlap = false;
-			for (int i = 0; !overlap && i < priEntities.size(); i++) {
-				Quintuple<String, String, String, Integer, Integer> priNe = priEntities.get(i);
-				IntRange neSpan = new IntRange(ne.third(), ne.fourth());
-				IntRange priSpan = new IntRange(priNe.fourth(), priNe.fifth());
-				overlap = neSpan.overlap(priSpan);
-			}
-			if (!overlap) {
-				Quintuple<String, String, String, Integer, Integer> sndNe = 
-						new SimpleQuintuple<String, String, String, Integer, Integer>(ne.first(), ne.second(), "AE", ne.third(), ne.fourth());
-				sndEntities.add(sndNe);
-			}			
-		}
-		*/
 	}
 	
+	/**
+	 * Returns true if the tree does not coanin X nodes.
+	 */
 	private boolean isWellFormedTree(Tree tree) {
+		assert tree != null;
 		for (Tree node : tree.getNodes()) {
 			if (!node.isLeaf() && node.getText().equals("X")) {
 				return false;
@@ -246,13 +223,20 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		return true;		
 	}
 	
-	private List<Quintuple<String, String, String, Integer, Integer>> getMentions(EntityI entity, Tree tree, String sent) {
-		assert entity != null;
+	/**
+	 * Retrieve the list of mentions of the entity in the sentence.
+	 * A mention is an occurrence of the entity name, alias, acronym or 
+	 * 	wiki referring name.
+	 * 
+	 * @param names A list of entity 's names
+	 * @param tree The sentence parse tree
+	 * @param sent The sentence text
+	 * @return The list of mentions with their spans
+	 */
+	private List<Quintuple<String, String, String, Integer, Integer>> getMentions(List<String> names, Tree tree, String sent) {
+		assert names != null;
 		assert tree != null;
 		assert sent != null;
-		
-		Set<String> names = new HashSet<>(entity.getAliases());		
-		names.add(entity.getName());
 		
 		//System.out.println("(EE): names(entity): " + names);
 		//System.out.println("(EE): sent: " + sent);
@@ -283,9 +267,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 					 * keep the longest one.
 					 */
 					} else if (nameSpan.len() > oldNameSpan.len()) {
-						Collections.replaceAll(nameSpans, oldNameSpan, nameSpan);
-						// nameSpans.remove(otherNameSpan);
-						// nameSpans.add(nameSpan);					
+						Collections.replaceAll(nameSpans, oldNameSpan, nameSpan);			
 					}
 				}
 			}
@@ -342,10 +324,9 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		return null;		
 	}
 	
-	private void close() {
-		for (PrintWriter writer : map.values()) {
-			writer.close();
-		}
+	@Override
+	void close() {
+		for (PrintWriter writer : map.values()) { writer.close(); }
 	}
 	
 	private String buildBOW(String text) { 
@@ -425,7 +406,17 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		}
 		return isAnnotable;
 	}
+	
+	private Tree annotate(Tree tree, List<TextAnnotationI> annotations) {
+		assert tree != null;
+		assert annotations != null;
+		
+		TreeBuilder tb = new TreeBuilder(tree);
+		annotate(tb, annotations);
+		return tb.build();
+	}
 
+	/*
 	private Tree annotate(Tree tree, List<TextAnnotationI> annotations, @SuppressWarnings("unchecked") List<TextAnnotationI>... otherAnnotations) {
 		assert tree != null;
 		assert annotations != null;
@@ -438,6 +429,7 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 		}		
 		return tb.build();
 	}
+	*/
 	
 	private TreeBuilder annotate(TreeBuilder tb, List<TextAnnotationI> annotations) {
 		assert tb != null;
@@ -489,16 +481,6 @@ public class TreeExamplesBuilder extends ExamplesBuilder {
 	
 	private int examplesNum = 0;
 	
-	private Map<String, PrintWriter> map = new HashMap<>();
-	
-	/*
-	private Comparator<String> strLenCmp = new Comparator<String>() {
-
-		@Override
-		public int compare(String o1, String o2) {
-			return o2.length() - o1.length();
-		}		
-	};
-	*/
+	Map<String, PrintWriter> map = new HashMap<>();
 	
 }
