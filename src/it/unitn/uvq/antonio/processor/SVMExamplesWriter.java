@@ -1,8 +1,8 @@
 package it.unitn.uvq.antonio.processor;
 
 import it.unitn.uvq.antonio.util.IntRange;
-import it.unitn.uvq.antonio.util.tuple.Quadruple;
-import it.unitn.uvq.antonio.util.tuple.SimpleQuadruple;
+import it.unitn.uvq.antonio.util.tuple.Quintuple;
+import it.unitn.uvq.antonio.util.tuple.SimpleQuintuple;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -18,7 +18,7 @@ import com.google.common.base.Joiner;
 
 public class SVMExamplesWriter {
 	
-	SVMExamplesWriter(ExampleBuilder builder) {
+	SVMExamplesWriter(WordIdExampleBuilder builder) {
 		if (builder == null) { 
 			throw new NullPointerException("builder is null");
 		}
@@ -43,7 +43,7 @@ public class SVMExamplesWriter {
 		File dest = new File(outputFile).getParentFile();
 		if (!dest.isDirectory()) { dest.mkdirs(); }
 		
-		String tsvFile = getFilepathWithoutExtension(outputFile) + ".tsv";
+		//String tsvFile = getFilepathWithoutExtension(outputFile) + ".tsv";
 
 		PrintWriter out = null;
 		try {
@@ -54,6 +54,7 @@ public class SVMExamplesWriter {
 			System.exit(1);
 		}
 		
+		/*
 		PrintWriter tsv = null;
 		try {
 			tsv = new PrintWriter(
@@ -62,6 +63,7 @@ public class SVMExamplesWriter {
 			System.err.println("I/O Error: " + e.getMessage());
 			System.exit(1);
 		}
+		*/
 		
 		BufferedReader in = null;
 		try {
@@ -69,6 +71,8 @@ public class SVMExamplesWriter {
 					new FileReader(inputFile));
 			
 			int examplesNum = 0;
+			out.println("paragraph\tsentence\tmid\ttitle\tstart\tend\tnotable_types\tnotable_for\tsvm_example");
+			in.readLine();
 			for (String line = null; (line = in.readLine()) != null; ) {
 				//System.out.print("(" + examplesNum + "): ");
 				line = line.trim();
@@ -76,16 +80,19 @@ public class SVMExamplesWriter {
 				
 				if (isValidExample(line)) {
 					//System.out.println(line);
-					Quadruple values = processLine(line);
+					Quintuple values = processLine(line);
 					
 					String paragraph = (String) values.first();
 					String sentence  = (String) values.second();
 					IntRange entitySpan = (IntRange) values.third();
 					List<String> notableTypes = (List<String>) values.fourth();
+					String notableFor = (String) values.fifth();
 					
 					builder.setParagraph(paragraph);
 					builder.setSentence(sentence);
 					builder.setEntitySpan(entitySpan);
+					builder.setNotableTypes(notableTypes);
+					builder.setNotableFor(notableFor);
 					
 					String svmExample = null;
 					try {
@@ -99,10 +106,10 @@ public class SVMExamplesWriter {
 						System.out.print(".");
 					
 						/* Write SVM example on outputFile file. */
-						out.println(svmExample);
+						out.println(line + '\t' + svmExample);
 					
 						/* Write notable types on outputFile.tsv file. */
-						tsv.println(Joiner.on(SEPARATOR).join(notableTypes));
+						///tsv.println(Joiner.on(SEPARATOR).join(notableTypes));
 					} else {
 						System.out.print("n");
 					}
@@ -120,12 +127,12 @@ public class SVMExamplesWriter {
 			try {
 				in.close();
 				out.close();
-				tsv.close();
+				// tsv.close();
 			} catch (IOException e) { }
 		}
 	}
 	
-	private Quadruple<String, String, IntRange, List<String>> processLine(String line) { 
+	private Quintuple<String, String, IntRange, List<String>, String> processLine(String line) { 
 		assert line != null;
 		
 		String[] parts = line.split(SEPARATOR);
@@ -134,10 +141,11 @@ public class SVMExamplesWriter {
 		int start = Integer.parseInt(parts[4]);
 		int end = Integer.parseInt(parts[5]);
 		List<String> notableTypes = Arrays.asList(parts[6].split(","));
+		String notableFor = parts[7];
 		
 		IntRange entitySpan = new IntRange(start, end);
-		Quadruple<String, String, IntRange, List<String>> values = 				
-				new SimpleQuadruple<String, String, IntRange, List<String>>(paragraph, sentence, entitySpan, notableTypes);
+		Quintuple<String, String, IntRange, List<String>, String> values = 				
+				new SimpleQuintuple<>(paragraph, sentence, entitySpan, notableTypes, notableFor);
 					
 		return values;	
 	}
@@ -153,7 +161,7 @@ public class SVMExamplesWriter {
 		assert  line != null;
 		
 		String[] parts = line.split(SEPARATOR);
-		if (parts.length != 7) { return false; }
+		if (parts.length != 8) { return false; }
 	
 		String paragraph = parts[0];
 		
@@ -220,98 +228,77 @@ public class SVMExamplesWriter {
 	
 	private final static String SEPARATOR = "\t";
 	
-	private final ExampleBuilder builder;
+	private final WordIdExampleBuilder builder;
 	
-
+	/**
+	 * Returns the list of files in a directory.
+	 * 
+	 * @param pathname A string holding the file path
+	 * @return The list of files in the directory
+	 */
+	private final static File[] listFiles(String pathname) { 
+		assert pathname != null;
+		
+		if (!existsDir(pathname)) { 
+			System.err.println("Dir not found: " + pathname);
+			return new File[0];
+		}
+		return new File(pathname).listFiles();
+	}
 	
 	public static void main(String[] args) {
 		
-		String[] notableTypes = {
-			/*
-			"/automotive/model",
-			"/book/book",
-			"/book/journal",
-			"/book/magazine",
-			"/business/business_operation",
-			"/computer/computer_scientist",
-			"/computer/software",
-			"/education/academic",
-			"/en/artist",
-			"/en/chef",
-			"/en/economist",
-			"/en/engineer",
-			"/en/entrepreneur",
-			"/en/lawyer",
-			//"/en/winemaker",
-			"/en/writer",
-			"/film/actor",
-			//"/film/film",
-			"/food/dish",
-			"/food/food",
-			"/food/ingredient",
-			"/government/government_agency",
-			"/government/political_party",
-			"/government/politician",
-			"/internet/website",
-			"/location/citytown",
-			"/music/artist",
-			"/music/composition",
-			"/music/musical_group",
-			"/organization/organization",
-			"/spaceflight/satellite",			
-			"/sports/pro_athlete",
-			"/visual_art/visual_artist"
-			*/
-		};
+		String src = "/home/antonio/Scrivania/sshdir_loc/data_fetched/Misc";
+		String dest = "/home/antonio/Scrivania/sshdir_loc/Misc";
 		
-		
-		
-		String src = "/home/antonio/Scrivania/sshdir_loc/data_fetched";
-		String dest = "/home/antonio/Scrivania/sshdir_loc";
-		
-		//String inputFile = "/home/antonio/Scrivania/sshdir_loc/data_fetched/%2Fautomotive%2Fmodel.tsv";
-		//String outputFile = "/home/antonio/Scrivania/sshdir_loc/Tree/Misc/data/%2Fautomotive%2Fmodel.dat";
-		
-		ExampleBuilder builder = new ShallowExampleBuilder();
+		WordIdExampleBuilder builder = new TreeWordIdExampleBuilder(MISC_IX);
 		SVMExamplesWriter writer = new SVMExamplesWriter(builder);
 		
 		String className = builder.getClass().getSimpleName();
-		
 		String subdir = className.substring(0, className.indexOf("ExampleBuilder"));
 		dest = JOINER.join(dest, subdir, "data");
 				
 		
-		//System.out.println("destDir: " + destDir);
-		
-		for (String notableType : notableTypes) {
-			String filenameWithoutExt = notableType.replace("/", "%2F");
+		for (File file : listFiles(src)) {
+			String filename = file.getName();
 			
-			String outputDirpath = JOINER.join(dest, filenameWithoutExt);
+			if (!existsDir(dest)) { mkdirs(dest); }
 			
-			if (!existsDir(outputDirpath)) { 
-				mkdirs(outputDirpath);
-			}
-			//System.out.println("output dir: " + outputDirpath);
+			String inputFile = JOINER.join(src, filename);
+			String outputFile = JOINER.join(dest, filename);
 			
-			String inputFile = JOINER.join(src, filenameWithoutExt + ".tsv");
-			String outputFile = JOINER.join(outputDirpath, filenameWithoutExt + ".dat");
+			//String inputFile = "/home/antonio/Scrivania/sshdir_loc/data_fetched/PER/%2Ffilm%2Factor.tsv";
+			//String outputFile = "/home/antonio/Scrivania/sshdir_loc/PER/Tree/%2Ffilm%2Factor.tsv";
 			
-			System.out.println("inputFile: " + inputFile);
-			System.out.println("outputFile: " + outputFile);
+			writeFileModel(writer, inputFile, outputFile);
 			
-			
-			//System.out.println("input_file: " + inputFile);
-			//System.out.println("output_file: " + outputFile);
-			//System.out.println();
-			
-
-			if (existsFile(inputFile)) {
-				writer.writeSVMExamples(inputFile, outputFile);
-				System.out.println();
-			} else {
-				System.out.println("File not found: " + inputFile);
-			}
 		}
+	}
+			
+	public static void writeFileModel(SVMExamplesWriter writer, String inputFile, String outputFile) {
+		if (writer == null) { 
+			throw new NullPointerException("writer is null");
+		}
+		if (inputFile == null) { 
+			throw new NullPointerException("inputFile is null");
+		}
+		if (outputFile == null) {
+			throw new NullPointerException("outputFile is null");
+		}
+		  
+		File file = new File(inputFile);
+				
+		if (file.isDirectory() || !file.getPath().endsWith(".tsv")) return;
+			
+		System.out.println("inputFile: " + inputFile);
+		System.out.println("outputFile: " + outputFile);
+		
+		if (existsFile(inputFile)) {
+			writer.writeSVMExamples(inputFile, outputFile);
+			System.out.println();
+		} else {
+			System.out.println("File not found: " + inputFile);
+		}			
 	}
 	
 	/* Checks whether teh file exists. */
@@ -336,5 +323,11 @@ public class SVMExamplesWriter {
 	}
 	
 	private final static Joiner JOINER = Joiner.on(File.separator);
+	
+	private final static String PER_IX = "/home/antonio/Scrivania/sshdir_loc/data_fetched/per.ix";
+	
+	private final static String ORG_IX = "/home/antonio/Scrivania/sshdir_loc/data_fetched/org.ix";
+	
+	private final static String MISC_IX = "/home/antonio/Scrivania/sshdir_loc/data_fetched/misc.ix";
 
 }

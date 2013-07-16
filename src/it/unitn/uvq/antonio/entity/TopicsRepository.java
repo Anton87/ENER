@@ -59,6 +59,26 @@ public class TopicsRepository {
 		return wikiUri.isEmpty() ? wikiUri : DbPedia.getAbstract(wikiUri); 
 	}
 	
+	/**
+	 * Returns the title of the page with this mid.
+	 * 
+	 * @param mid A string holding the wiki mid
+	 * @return The wiki title for this mid 
+	 * @throws TopicAPIException An error occurred
+	 * @throws NullPointerException if (mid == null)
+	 */
+	public static String getWikiTitle(String mid) throws TopicAPIException { 
+		if (mid == null) throw new NullPointerException("mid: null");
+		
+		JSONObject jsonData = TopicAPI.get(mid);
+		
+		String wikiUri = jsonData == null ? null : TopicsHelper.getWikiUri(jsonData);
+		String title  = wikiUri == null ? null :
+			wikiUri.isEmpty() ? null
+				: wikiUri.substring(wikiUri.lastIndexOf('/') + 1);
+		return title;
+	}
+	
 	public static void saveEntity(EntityI entity, String filepath) {
 		if (entity == null) throw new NullPointerException("entity: null");
 		if (filepath == null) throw new NullPointerException("filepath: null");

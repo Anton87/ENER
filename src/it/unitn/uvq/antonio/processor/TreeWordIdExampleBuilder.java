@@ -1,5 +1,7 @@
 package it.unitn.uvq.antonio.processor;
 
+import java.util.List;
+
 import svmlighttk.SVMExampleBuilder;
 import it.unitn.uvq.antonio.nlp.annotation.AnnotationApi;
 import it.unitn.uvq.antonio.nlp.annotation.BasicAnnotationApi;
@@ -9,14 +11,11 @@ import it.unitn.uvq.antonio.nlp.parse.Parser;
 import it.unitn.uvq.antonio.nlp.parse.tree.Tree;
 import it.unitn.uvq.antonio.nlp.parse.tree.TreeBuilder;
 
-/**
- * Build SVM examples containing the paragraph BOW and 
- *  the sentence parse tree with the main entity annotated. 
- * 
- * @author Antonio Uva 145683
- *
- */
-public class TreeExampleBuilder extends ExampleBuilder {
+public class TreeWordIdExampleBuilder extends WordIdExampleBuilder {
+
+	public TreeWordIdExampleBuilder(String indexFilepath) {
+		super(indexFilepath);
+	}
 
 	@Override
 	public String build() {		
@@ -29,9 +28,13 @@ public class TreeExampleBuilder extends ExampleBuilder {
 		
 		if (!isValidSentence(parse)) return null;
 		
-		String paragraphBOW = buildBOW(paragraph);
-		
 		TreeBuilder annotatedTree = annotator.annotate(a, tb);
+		
+		List<String> tokens = tokenize(paragraph);
+		
+		String paragraphBOW = buildBOW(tokens);
+		
+		String wordIdsVec = buildWordIdsVec(tokens);
 		
 		String infoString = buildInfoString(notableTypes, notableFor);
 		
@@ -40,7 +43,7 @@ public class TreeExampleBuilder extends ExampleBuilder {
 			.addTree(annotatedTree.toString())
 			.build();
 		
-		svmExample += " " + infoString;
+		svmExample += " " + wordIdsVec + "|EV| " + infoString;
 		
 		return svmExample;				
 	}
@@ -60,5 +63,5 @@ public class TreeExampleBuilder extends ExampleBuilder {
 	private static Parser parser = Parser.getInstance();
 	
 	private static AnnotationApi annotator = new BasicAnnotationApi();
-	
+
 }

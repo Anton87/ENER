@@ -13,11 +13,16 @@ public class BOWExampleBuilder extends ExampleBuilder {
 	@Override
 	public String build() {
 		
-		String sentenceBOW = buildBOW(sentence);
+		//String sentenceBOW = buildBOW(sentence);
+		String bow = buildBOW(paragraph);
+		
+		String infoString = buildInfoString(notableTypes, notableFor);
 		
 		String svmExample = new SVMExampleBuilder()
-			.addTree(sentenceBOW)
+			.addTree(bow)
 			.build();
+		
+		svmExample += " " + infoString;
 		
 		return svmExample;
 	}
